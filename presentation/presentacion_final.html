@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Esperanza de vida (OMS) · IA 1 · Grupo E1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Unbounded:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Lienzo fijo 1920x1080 escalado a la ventana. Mundo visual: un monitor de signos vitales sobre tinta azul-verde. */
+  --bg: #04090c;
+  --ink: #edf5f3;
+  --mut: #92a9ad;
+  --line: rgba(140, 220, 210, .16);
+  --panel: rgba(10, 26, 30, .82);
+  --teal: #3fd6c0;
+  --coral: #ff7a59;
+  --amber: #ffc15e;
+  --sky: #6cc4ff;
+  --violet: #a99bff;
+  --f-display: 'Unbounded', 'Arial Black', Arial, sans-serif;
+  --f-body: 'IBM Plex Sans', 'Segoe UI', Arial, sans-serif;
+  --f-mono: 'IBM Plex Mono', Consolas, 'Courier New', monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body {
+  background:
+    radial-gradient(1200px 700px at 90% 110%, rgba(255, 122, 89, .11), transparent 60%),
+    radial-gradient(1100px 800px at -5% -10%, rgba(63, 214, 192, .13), transparent 62%),
+    var(--bg);
+  color: var(--ink); font-family: var(--f-body); overflow: hidden;
+}
+#bg { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform: translate(-50%, -50%); }
+
+.slide {
+  position: absolute; inset: 0; padding: 74px 112px 112px; display: flex; flex-direction: column; gap: 24px;
+  opacity: 0; visibility: hidden; transform: translateX(70px) scale(.985);
+  transition: opacity .45s ease, transform .6s cubic-bezier(.2, .7, .2, 1), visibility 0s .45s;
+}
+.slide.prev { transform: translateX(-70px) scale(.985); }
+.slide.active { opacity: 1; visibility: visible; transform: none; transition-delay: 0s, 0s, 0s; }
+
+.eyebrow { font: 500 21px/1.2 var(--f-mono); letter-spacing: .2em; text-transform: uppercase; color: var(--teal); }
+h1 { font: 600 80px/1.06 var(--f-display); letter-spacing: -.02em; text-wrap: balance; }
+h2 { font: 500 44px/1.14 var(--f-display); letter-spacing: -.015em; text-wrap: balance; margin-top: 12px; }
+h3 { font: 600 30px/1.2 var(--f-body); }
+p { font-size: 27px; line-height: 1.38; }
+b { font-weight: 600; }
+.mut { color: var(--mut); }
+.mono { font-family: var(--f-mono); }
+.lead { font-size: 34px; line-height: 1.3; color: var(--mut); }
+.small { font-size: 23px; line-height: 1.35; color: var(--mut); }
+.tl { color: var(--teal); } .co { color: var(--coral); } .am { color: var(--amber); } .sk { color: var(--sky); } .vi { color: var(--violet); }
+
+.row { display: flex; gap: 36px; align-items: flex-start; flex: 1; min-height: 0; }
+.col { display: flex; flex-direction: column; gap: 20px; }
+.grow1 { flex: 1; min-width: 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }
+.grid5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; }
+
+.glass { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 24px 28px; }
+.chart { padding: 16px 18px 10px; }
+.chart svg, .chart canvas { display: block; }
+.tile { display: flex; flex-direction: column; gap: 4px; }
+.tile .k { font: 500 19px/1.3 var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--mut); }
+.tile .v { font: 600 48px/1.1 var(--f-display); color: var(--teal); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.tile .v.sm { font-size: 36px; }
+.tile .s { font-size: 22px; line-height: 1.3; color: var(--mut); }
+.callout { border-left: 5px solid var(--teal); padding: 4px 0 4px 24px; font-size: 26px; line-height: 1.38; }
+.callout.co { border-color: var(--coral); color: var(--ink); }
+.pill { display: inline-block; align-self: flex-start; font: 600 22px/1.2 var(--f-body); padding: 10px 20px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { background: var(--teal); color: #04140f; }
+.pill.no { background: rgba(255, 122, 89, .16); color: var(--coral); border: 1px solid rgba(255, 122, 89, .5); }
+.pill.nt { background: rgba(108, 196, 255, .14); color: var(--sky); border: 1px solid rgba(108, 196, 255, .45); }
+.hrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.cap { font-size: 24px; line-height: 1.36; }
+
+table.tbl { width: 100%; border-collapse: collapse; font-size: 24px; font-variant-numeric: tabular-nums; }
+.tbl th { font: 500 18px/1.3 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--mut); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.tbl td { padding: 10px 10px; border-bottom: 1px solid rgba(140, 220, 210, .08); }
+.tbl td.num, .tbl th.num { text-align: right; font-family: var(--f-mono); }
+.tbl tr.win td { color: var(--teal); font-weight: 600; }
+.tbl .cellfx { opacity: 0; transition: opacity .6s; }
+.tbl .cellfx.on { opacity: 1; }
+
+/* ---------- animaciones genéricas ---------- */
+.fx { opacity: 0; transform: translateY(26px); transition: opacity .6s cubic-bezier(.2, .7, .2, 1), transform .75s cubic-bezier(.2, .7, .2, 1); transition-delay: calc(var(--d, 0) * 1ms); }
+.slide.active .fx:not([data-step]), .fx.on { opacity: 1; transform: none; }
+.dim { transition: opacity .5s; }
+svg .bar { transform-box: fill-box; transform-origin: 50% 100%; transform: scaleY(0); transition: transform .85s cubic-bezier(.2, .8, .2, 1); transition-delay: calc(var(--d, 0) * 1ms); }
+svg .barx { transform-box: fill-box; transform-origin: 0 50%; transform: scaleX(0); transition: transform .85s cubic-bezier(.2, .8, .2, 1); transition-delay: calc(var(--d, 0) * 1ms); }
+svg .barx.neg { transform-origin: 100% 50%; }
+.slide.active svg .bar:not([data-step]), svg .bar.on, .slide.active svg .barx:not([data-step]), svg .barx.on { transform: none; }
+svg .draw { stroke-dasharray: var(--len); stroke-dashoffset: var(--len); transition: stroke-dashoffset var(--dur, 1.6s) cubic-bezier(.4, 0, .2, 1); transition-delay: calc(var(--d, 0) * 1ms); }
+.slide.active svg .draw:not([data-step]), svg .draw.on { stroke-dashoffset: 0; }
+svg .pop { transform-box: fill-box; transform-origin: center; transform: scale(0); opacity: 0; transition: transform .55s cubic-bezier(.3, 1.5, .5, 1), opacity .3s, fill .6s; transition-delay: calc(var(--d, 0) * 1ms); }
+.slide.active svg .pop:not([data-step]), svg .pop.on { transform: scale(1); opacity: 1; }
+svg .fade { opacity: 0; transition: opacity .7s; transition-delay: calc(var(--d, 0) * 1ms); }
+.slide.active svg .fade:not([data-step]), svg .fade.on { opacity: 1; }
+svg .wiper { transform-box: fill-box; transform-origin: 0 50%; transform: scaleX(0); transition: transform var(--dur, 1.6s) cubic-bezier(.4, 0, .2, 1); transition-delay: calc(var(--d, 0) * 1ms); }
+.slide.active svg .wiper:not([data-step]), svg .wiper.on { transform: scaleX(1); }
+
+svg text { font-family: var(--f-body); }
+svg .tick { font: 19px var(--f-mono); fill: var(--mut); }
+svg .atitle { font: 21px var(--f-body); fill: var(--mut); }
+svg .lab { font: 600 21px var(--f-body); fill: var(--ink); }
+svg .labm { font: 500 19px var(--f-mono); fill: var(--ink); }
+#sc-svg text.labm { paint-order: stroke; stroke: #04090c; stroke-width: 5px; stroke-linejoin: round; }
+svg .axis { stroke: rgba(140, 220, 210, .38); stroke-width: 1.5; }
+svg .grid { stroke: rgba(140, 220, 210, .10); stroke-width: 1; }
+.c-tl { fill: var(--teal); } .c-co { fill: var(--coral); } .c-am { fill: var(--amber); } .c-sk { fill: var(--sky); } .c-vi { fill: var(--violet); }
+.l-tl { stroke: var(--teal); } .l-co { stroke: var(--coral); } .l-am { stroke: var(--amber); } .l-sk { stroke: var(--sky); } .l-vi { stroke: var(--violet); } .l-ink { stroke: var(--ink); }
+svg .ln { stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+svg .dash { stroke-dasharray: 10 8; }
+.legend { display: flex; gap: 26px; flex-wrap: wrap; font-size: 21px; color: var(--mut); padding: 2px 6px 8px; }
+.legend i { display: inline-block; width: 26px; height: 5px; border-radius: 3px; margin-right: 9px; vertical-align: middle; }
+.legend i.sq { width: 16px; height: 16px; border-radius: 4px; }
+.legend i.dot { width: 14px; height: 14px; border-radius: 50%; }
+
+.hb { display: grid; grid-template-columns: 300px 1fr 100px; align-items: center; gap: 16px; font-size: 23px; }
+.hb .track { height: 26px; border-radius: 8px; background: rgba(140, 220, 210, .09); overflow: hidden; }
+.hb .fill { height: 100%; width: 0; border-radius: 8px; transition: width 1.1s cubic-bezier(.2, .8, .2, 1); transition-delay: calc(var(--d, 0) * 1ms); }
+.slide.active .hb:not([data-step]) .fill, .hb.on .fill { width: var(--w); }
+.hb .val { font: 500 22px var(--f-mono); text-align: right; }
+
+/* ---------- portada ---------- */
+#portada { justify-content: center; gap: 24px; }
+#portada h1 { font-size: 70px; }
+#hero { position: absolute; left: 1010px; top: 90px; width: 880px; height: 900px; }
+.cover-txt { width: 960px; display: flex; flex-direction: column; gap: 24px; position: relative; }
+.telemetry { display: flex; margin-top: 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.telemetry div { padding: 16px 28px 16px 0; margin-right: 28px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+.telemetry div:last-child { border-right: 0; }
+.telemetry b { font: 600 36px/1.1 var(--f-display); color: var(--teal); font-variant-numeric: tabular-nums; }
+.telemetry span { font: 500 17px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--mut); }
+.who { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 30px; }
+.who p { font-size: 26px; font-weight: 600; }
+.who p.mono { grid-column: 1 / -1; font: 500 21px var(--f-mono); color: var(--mut); margin-top: 8px; letter-spacing: .04em; }
+
+/* ruta */
+.wp { gap: 10px; min-height: 330px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+.wp .n { font: 600 54px/1 var(--f-display); color: transparent; -webkit-text-stroke: 1.5px var(--teal); }
+.wp h3 { font-size: 31px; margin-top: 14px; }
+.wp .d { font-size: 22px; color: var(--mut); line-height: 1.35; }
+.wp .v { font: 500 19px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--amber); margin-top: auto; }
+.wp::after { content: ''; position: absolute; left: 0; bottom: 0; height: 4px; width: var(--pw, 0%); background: linear-gradient(90deg, var(--teal), var(--amber)); transition: width 1.2s cubic-bezier(.2, .8, .2, 1) .6s; }
+.slide.active .wp::after { --pw: 100%; }
+
+/* problema: línea de vida */
+.lifeline { position: relative; height: 136px; }
+.lifeline .rail { position: absolute; left: 0; right: 0; top: 70px; height: 14px; border-radius: 7px; background: linear-gradient(90deg, var(--coral), var(--amber) 55%, var(--teal)); transform-origin: 0 50%; transform: scaleX(0); transition: transform 1.6s cubic-bezier(.4, 0, .2, 1) .3s; }
+.slide.active .lifeline .rail { transform: scaleX(1); }
+.lifeline .mk { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; opacity: 0; transition: opacity .6s; transition-delay: calc(var(--d, 0) * 1ms); }
+.slide.active .lifeline .mk { opacity: 1; }
+.lifeline .mk b { font: 600 34px/1 var(--f-display); }
+.lifeline .mk span { font: 500 18px var(--f-mono); color: var(--mut); letter-spacing: .06em; white-space: nowrap; }
+.lifeline .mk i { width: 4px; height: 26px; background: var(--ink); border-radius: 2px; margin-top: 2px; }
+.lifeline .mk.lo { top: 62px; flex-direction: column-reverse; }
+.obj { display: grid; grid-template-columns: 70px 1fr; gap: 8px 18px; align-items: baseline; }
+.obj .n { font: 600 34px/1 var(--f-display); color: var(--teal); }
+.obj p { font-size: 26px; }
+.chal { padding: 20px 26px; display: flex; flex-direction: column; gap: 6px; }
+.chal .tag { font: 500 18px var(--f-mono); letter-spacing: .18em; text-transform: uppercase; color: var(--coral); }
+.chal p { font-size: 23px; color: var(--mut); }
+.chal h3 { font-size: 28px; }
+
+/* datos: familias de variables */
+.fam { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+.fam h3 { font: 500 18px var(--f-mono); letter-spacing: .16em; text-transform: uppercase; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips span { font: 500 18px var(--f-mono); padding: 6px 12px; border-radius: 8px; background: rgba(140, 220, 210, .08); border: 1px solid var(--line); color: var(--ink); }
+.target { border: 2px solid var(--coral); background: rgba(255, 122, 89, .08); }
+.rows3 { display: flex; flex-direction: column; gap: 6px; font: 500 20px var(--f-mono); color: var(--mut); }
+.rows3 span { display: block; padding: 6px 12px; border-radius: 8px; background: rgba(140, 220, 210, .07); }
+.rows3 span b { color: var(--coral); }
+.arrowr { font: 600 60px/1 var(--f-display); color: var(--coral); align-self: center; }
+
+/* workflow */
+.flow { display: flex; align-items: stretch; gap: 0; position: relative; }
+.node { flex: 1; padding: 20px 20px; display: flex; flex-direction: column; gap: 8px; position: relative; }
+.node .tag { font: 500 17px var(--f-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--teal); }
+.node h3 { font-size: 26px; }
+.node p { font-size: 20px; line-height: 1.32; color: var(--mut); }
+.link { width: 48px; align-self: center; height: 4px; position: relative; background: rgba(140, 220, 210, .16); border-radius: 2px; overflow: visible; }
+.link::after { content: ''; position: absolute; top: -5px; left: 0; width: 14px; height: 14px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 14px var(--teal); opacity: 0; }
+.slide.active .link::after { animation: pkt 1.8s linear infinite; animation-delay: calc(var(--d, 0) * 1ms); }
+@keyframes pkt { 0% { left: -4px; opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { left: 40px; opacity: 0; } }
+.lock { border-color: rgba(255, 193, 94, .55); }
+.lock .tag { color: var(--amber); }
+.mchip { display: flex; flex-direction: column; gap: 6px; padding: 18px 22px; border-top: 5px solid var(--c); }
+.mchip h3 { font-size: 27px; }
+.mchip p { font-size: 20px; color: var(--mut); line-height: 1.3; }
+.mchip .new { font: 600 15px var(--f-mono); letter-spacing: .14em; color: #04140f; background: var(--amber); border-radius: 6px; padding: 3px 8px; align-self: flex-start; }
+
+/* partición y k-fold */
+.split { padding: 18px 24px; display: flex; flex-direction: column; gap: 10px; }
+.slabels { display: flex; gap: 8px; font: 500 18px var(--f-mono); letter-spacing: .08em; color: var(--mut); text-transform: uppercase; }
+.slabels span:first-child { flex: 80; } .slabels span:last-child { flex: 20; color: var(--amber); }
+.sbar { display: flex; gap: 8px; height: 58px; }
+.sbar .tr { flex: 80; display: flex; gap: 6px; }
+.sbar .fold { flex: 1; border-radius: 8px; background: rgba(63, 214, 192, .18); border: 1px solid rgba(63, 214, 192, .35); display: flex; align-items: center; justify-content: center; font: 500 18px var(--f-mono); color: var(--ink); }
+.slide.active .sbar .fold { animation: kf 6s infinite; animation-delay: calc(var(--i) * 1.2s); }
+@keyframes kf { 0%, 17% { background: var(--teal); color: #04140f; } 20%, 100% { background: rgba(63, 214, 192, .18); color: var(--ink); } }
+.sbar .te { flex: 20; border-radius: 8px; border: 2px dashed rgba(255, 193, 94, .7); background: rgba(255, 193, 94, .08); display: flex; align-items: center; justify-content: center; gap: 10px; font: 600 20px var(--f-mono); color: var(--amber); }
+/* barras apiladas */
+.stk { display: grid; grid-template-columns: 120px 1fr; gap: 10px 16px; align-items: center; font-size: 20px; }
+.stk .b { display: flex; height: 30px; border-radius: 7px; overflow: hidden; background: rgba(140, 220, 210, .07); }
+.stk .b i { display: flex; align-items: center; justify-content: center; font: 600 16px var(--f-mono); color: #04140f; width: 0; transition: width 1s cubic-bezier(.2, .8, .2, 1); transition-delay: calc(var(--d, 0) * 1ms); }
+.fx.on .stk .b i { width: var(--w); }
+.course { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.course span { font: 500 20px var(--f-mono); padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(63, 214, 192, .45); color: var(--teal); background: rgba(63, 214, 192, .07); }
+/* perfiles */
+.prof { display: flex; flex-direction: column; gap: 10px; border-top: 6px solid var(--c); }
+.prof .big { font: 600 64px/1 var(--f-display); color: var(--c); font-variant-numeric: tabular-nums; }
+.prof dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 14px; font-size: 22px; }
+.prof dt { color: var(--mut); } .prof dd { font-family: var(--f-mono); text-align: right; }
+.prof .ex { font-size: 20px; color: var(--mut); }
+
+/* conclusiones */
+.cn { gap: 10px; display: flex; flex-direction: column; min-height: 230px; }
+.cn .n { font: 500 20px var(--f-mono); letter-spacing: .16em; color: var(--teal); }
+.cn p { font-size: 25px; line-height: 1.36; color: var(--mut); }
+.cn p b { color: var(--ink); }
+
+/* cierre */
+#cierre { justify-content: center; gap: 30px; }
+#cierre h1 { font-size: 80px; width: 1600px; }
+#cierre h1 span { display: inline-block; opacity: 0; transform: translateY(40px) rotate(2deg); filter: blur(8px); transition: opacity .7s, transform .8s cubic-bezier(.2, .7, .2, 1), filter .7s; transition-delay: calc(var(--d, 0) * 1ms); }
+#cierre.active h1 span { opacity: 1; transform: none; filter: none; }
+#cierre h1 em { font-style: normal; color: var(--teal); }
+.ecg { position: absolute; left: 0; right: 0; bottom: 120px; height: 160px; pointer-events: none; opacity: .5; }
+
+/* ---------- HUD ---------- */
+#hud { position: absolute; left: 112px; right: 112px; bottom: 44px; display: flex; align-items: center; gap: 26px; font: 500 17px var(--f-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--mut); }
+#hud .bar { flex: 1; height: 3px; background: rgba(140, 220, 210, .14); border-radius: 2px; overflow: hidden; }
+#hud .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--teal), var(--amber)); transition: width .6s cubic-bezier(.2, .7, .2, 1); }
+#hud #h-spk { color: var(--ink); }
+#hud #h-t { color: var(--teal); min-width: 70px; }
+#hud #h-t.warn { color: var(--amber); } #hud #h-t.over { color: var(--coral); }
+#notes { position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); width: min(1100px, 92vw); max-height: 40vh; overflow: auto; background: rgba(4, 12, 14, .96); border: 1px solid var(--line); border-radius: 14px; padding: 18px 22px; font: 400 17px/1.5 var(--f-body); color: var(--ink); display: none; z-index: 6; }
+#notes.show { display: block; }
+#notes p { font-size: 17px; line-height: 1.5; }
+#notes h4 { font: 500 13px var(--f-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--teal); margin-bottom: 8px; }
+#ctl { position: fixed; right: 14px; bottom: 12px; display: flex; gap: 8px; z-index: 5; opacity: .55; transition: opacity .3s; }
+#ctl:hover, #ctl:focus-within { opacity: 1; }
+#ctl button { font: 500 13px var(--f-mono); color: var(--ink); background: rgba(10, 26, 30, .92); border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px; cursor: pointer; }
+#ctl button:hover { border-color: var(--teal); }
+#ctl button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .slide.active .sbar .fold { animation: none; } .stk .b i { transition-duration: .01s !important; }
+  .slide, .fx, svg .bar, svg .barx, svg .draw, svg .pop, svg .fade, svg .wiper, .hb .fill, .lifeline .rail, .lifeline .mk, #cierre h1 span { transition-duration: .01s !important; transition-delay: 0s !important; }
+  .slide.active .link::after { animation: none; }
+}
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<main id="stage">
+
+<!-- ===================== 1 · PORTADA ===================== -->
+<section class="slide" id="portada" data-sec="Inicio">
+  <canvas id="hero" width="880" height="900" aria-label="Reloj de vida: cada punto es un país, más lejos del centro significa mayor esperanza de vida"></canvas>
+  <div class="cover-txt">
+    <p class="eyebrow fx">Inteligencia Artificial 1 · Proyecto final</p>
+    <h1 class="fx" style="--d:150">¿Qué explica la esperanza de vida de un país?</h1>
+    <p class="lead fx" style="--d:320">Regresión, reducción de dimensionalidad y agrupamiento con datos de la OMS</p>
+    <div class="telemetry fx" style="--d:500">
+      <div><b data-count="2938">2,938</b><span>registros</span></div>
+      <div><b data-count="193">193</b><span>países</span></div>
+      <div><b data-count="22">22</b><span>variables</span></div>
+      <div><b>2000–2015</b><span>período</span></div>
+    </div>
+    <div class="who fx" style="--d:680">
+      <p>Arnold Steven Navarro</p><p>Christian Jhose Moreno Rios</p>
+      <p>Julian Andres Rodriguez Montero</p><p>Marcelo Gomez Cabra</p>
+      <p class="mono">Grupo E1</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 2 · RUTA ===================== -->
+<section class="slide" id="ruta" data-sec="Inicio">
+  <div><p class="eyebrow fx">Ruta</p><h2 class="fx" style="--d:80">Del dato crudo a perfiles de países, en cinco pasos</h2></div>
+  <div class="grid5" style="margin-top:14px">
+    <div class="glass wp fx" style="--d:150"><p class="n">01</p><h3>Problema y datos</h3><p class="d">Qué queremos predecir y con qué</p><p class="v">Arnold</p></div>
+    <div class="glass wp fx" style="--d:280"><p class="n">02</p><h3>Análisis exploratorio</h3><p class="d">Calidad, distribuciones y relaciones</p><p class="v">Christian</p></div>
+    <div class="glass wp fx" style="--d:410"><p class="n">03</p><h3>Aprendizaje supervisado</h3><p class="d">Árbol, bosque, SVR y red densa</p><p class="v">Julian</p></div>
+    <div class="glass wp fx" style="--d:540"><p class="n">04</p><h3>No supervisado</h3><p class="d">PCA y agrupamiento de países</p><p class="v">Marcelo</p></div>
+    <div class="glass wp fx" style="--d:670"><p class="n">05</p><h3>Conclusiones</h3><p class="d">Qué aprendimos y qué falta</p><p class="v">Marcelo</p></div>
+  </div>
+  <p class="small fx" style="--d:900;margin-top:10px">Todos los resultados vienen de nuestros notebooks: EDA, aprendizaje supervisado y aprendizaje no supervisado.</p>
+</section>
+
+<!-- ===================== 3 · PROBLEMA ===================== -->
+<section class="slide" id="problema" data-sec="Problema">
+  <div><p class="eyebrow fx">Planteamiento del problema</p><h2 class="fx" style="--d:80">Entre el país que menos vive y el que más hay 52.7 años</h2></div>
+  <div class="glass fx" style="--d:150;padding:22px 170px 6px">
+    <div class="lifeline">
+      <div class="rail"></div>
+      <div class="mk" style="left:0%;--d:500"><b class="co">36.3</b><span>Haití 2010 · mínimo</span><i></i></div>
+      <div class="mk" style="left:67.9%;--d:1200"><b>72.1</b><span>mediana mundial</span><i></i></div>
+      <div class="mk" style="left:100%;--d:1700"><b class="tl">89.0</b><span>máximo del dataset</span><i></i></div>
+      <div class="mk lo" style="left:62.1%;--d:1450"><span>en desarrollo 69.1</span><i style="background:var(--amber)"></i></div>
+      <div class="mk lo" style="left:81.5%;--d:1550"><span>desarrollados 79.3</span><i style="background:var(--sky)"></i></div>
+    </div>
+  </div>
+  <div class="row" style="gap:30px">
+    <div class="col grow1" style="gap:18px">
+      <p class="fx" style="--d:350"><b>Pregunta:</b> dadas las características de un país en un año (salud, inmunización, economía y educación), ¿cuántos años vive en promedio su población?</p>
+      <div class="obj fx" style="--d:450"><span class="n">1</span><p>Identificar qué factores se asocian más con la esperanza de vida.</p></div>
+      <div class="obj fx" style="--d:550"><span class="n">2</span><p>Predecirla en años con modelos supervisados y comparar clásicos frente a una red densa.</p></div>
+      <div class="obj fx" style="--d:650"><span class="n">3</span><p>Ver si menos dimensiones bastan y qué perfiles de países aparecen sin usar la etiqueta.</p></div>
+    </div>
+    <div class="col" style="width:760px;gap:14px">
+      <div class="glass chal fx" data-step="1"><p class="tag">Desafío 1 · Calidad</p><h3>Datos incompletos e inconsistentes</h3><p>Hasta 22 % de nulos por columna, ceros que en realidad son datos no reportados y saltos bruscos de mortalidad.</p></div>
+      <div class="glass chal fx" data-step="2"><p class="tag">Desafío 2 · Escala y forma</p><h3>Variables muy distintas y asimétricas</h3><p>Porcentajes, dólares y millones de habitantes; outliers reales como las crisis de VIH.</p></div>
+      <div class="glass chal fx" data-step="3"><p class="tag">Desafío 3 · Estructura</p><h3>Panel país × año y redundancia</h3><p>16 filas por país (riesgo de fuga entre train y test) y variables casi duplicadas.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 4 · DATOS ===================== -->
+<section class="slide" id="datos" data-sec="Datos">
+  <div><p class="eyebrow fx">Conjunto de datos</p><h2 class="fx" style="--d:80">Life Expectancy (WHO) · Kaggle</h2></div>
+  <div class="grid4">
+    <div class="glass tile fx" style="--d:150"><p class="k">Origen</p><p class="v sm">OMS + ONU</p><p class="s">Global Health Observatory y datos económicos de Naciones Unidas</p></div>
+    <div class="glass tile fx" style="--d:250"><p class="k">Registros</p><p class="v" data-count="2938">2,938</p><p class="s">Cada fila es un país en un año</p></div>
+    <div class="glass tile fx" style="--d:350"><p class="k">Características</p><p class="v" data-count="20">20</p><p class="s">Sin Country (193 valores) ni la etiqueta</p></div>
+    <div class="glass tile fx" style="--d:450"><p class="k">Etiqueta</p><p class="v co" style="color:var(--coral)">Años</p><p class="s">Life expectancy, continua de 36.3 a 89.0</p></div>
+  </div>
+  <div class="row" style="gap:22px">
+    <div class="col grow1" style="gap:12px">
+      <div class="grid2" style="gap:12px">
+        <div class="glass fam fx" style="--d:550"><h3 class="co">Mortalidad y enfermedad</h3><div class="chips"><span>Adult Mortality</span><span>infant deaths</span><span>under-five deaths</span><span>HIV/AIDS</span><span>Measles</span></div></div>
+        <div class="glass fam fx" style="--d:620"><h3 class="tl">Inmunización</h3><div class="chips"><span>Hepatitis B</span><span>Polio</span><span>Diphtheria</span></div></div>
+        <div class="glass fam fx" style="--d:690"><h3 class="am">Economía</h3><div class="chips"><span>GDP</span><span>percentage expenditure</span><span>Total expenditure</span><span>Population</span><span>Income composition</span><span>Status</span></div></div>
+        <div class="glass fam fx" style="--d:760"><h3 class="sk">Social, nutrición y tiempo</h3><div class="chips"><span>Schooling</span><span>Alcohol</span><span>BMI</span><span>thinness 1-19</span><span>thinness 5-9</span><span>Year</span></div></div>
+      </div>
+    </div>
+    <p class="arrowr fx" style="--d:850">→</p>
+    <div class="col" style="width:560px;gap:14px">
+      <div class="glass target col fx" style="--d:900;gap:10px"><h3>¿Por qué regresión?</h3><p class="small" style="color:var(--ink)">La etiqueta es un número continuo con cientos de valores. Agruparla en "baja, media, alta" pierde información y depende de cortes arbitrarios.</p></div>
+      <div class="glass col fx" data-step="1" style="gap:10px"><h3 style="font-size:24px">Cada fila es país × año</h3>
+        <div class="rows3"><span>Afghanistan · 2015 · <b>65.0</b></span><span>Afghanistan · 2014 · <b>59.9</b></span><span>Afghanistan · 2013 · <b>59.9</b></span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 5 · CALIDAD ===================== -->
+<section class="slide" id="calidad" data-sec="EDA · Calidad">
+  <div><p class="eyebrow fx">Análisis exploratorio · Calidad de datos</p><h2 class="fx" style="--d:80">Los nulos no están donde uno esperaría</h2></div>
+  <div class="row">
+    <div class="glass col fx" style="--d:150;gap:13px;width:1000px"><h3 style="margin-bottom:4px">Porcentaje de valores faltantes por columna</h3>
+      <div class="hb" style="--w:100%;--d:300"><span>Population</span><div class="track"><div class="fill" style="background:var(--coral)"></div></div><span class="val">22.2 %</span></div>
+      <div class="hb" style="--w:93.7%;--d:380"><span>% expenditure</span><div class="track"><div class="fill" style="background:var(--coral)"></div></div><span class="val">20.8 %</span></div>
+      <div class="hb" style="--w:84.8%;--d:460"><span>Hepatitis B</span><div class="track"><div class="fill" style="background:var(--coral)"></div></div><span class="val">18.8 %</span></div>
+      <div class="hb" style="--w:78.5%;--d:540"><span>Adult Mortality</span><div class="track"><div class="fill" style="background:var(--coral)"></div></div><span class="val">17.4 %</span></div>
+      <div class="hb" style="--w:68.7%;--d:620"><span>GDP</span><div class="track"><div class="fill" style="background:var(--coral)"></div></div><span class="val">15.3 %</span></div>
+      <div class="hb" style="--w:34.7%;--d:700"><span>Total expenditure</span><div class="track"><div class="fill" style="background:var(--amber)"></div></div><span class="val">7.7 %</span></div>
+      <div class="hb" style="--w:29.7%;--d:780"><span>Alcohol</span><div class="track"><div class="fill" style="background:var(--amber)"></div></div><span class="val">6.6 %</span></div>
+      <div class="hb" style="--w:25.6%;--d:860"><span>Income composition</span><div class="track"><div class="fill" style="background:var(--amber)"></div></div><span class="val">5.7 %</span></div>
+      <div class="hb" style="--w:25.0%;--d:940"><span>Schooling</span><div class="track"><div class="fill" style="background:var(--amber)"></div></div><span class="val">5.6 %</span></div>
+      <div class="hb" style="--w:1.5%;--d:1020"><span>Life expectancy</span><div class="track"><div class="fill" style="background:var(--teal)"></div></div><span class="val">0.3 %</span></div>
+      <p class="small">Incluye los ceros falsos y los valores sospechosos ya convertidos a nulos. 0 filas duplicadas.</p>
+    </div>
+    <div class="col grow1" style="gap:16px">
+      <div class="glass col fx" data-step="1" style="gap:6px"><h3><span class="co">611</span> ceros falsos</h3><p class="small">Gasto en salud de 0 % en países completos, incluso Chequia y Corea del Sur: no reportado, no real.</p></div>
+      <div class="glass col fx" data-step="2" style="gap:6px"><h3><span class="co">502</span> saltos en mortalidad adulta</h3><p class="small">En 161 de 193 países, detectados con la mediana y la MAD de cada país; se pasan a nulos sin borrar la fila.</p></div>
+      <p class="callout fx" data-step="3"><b>Decisión:</b> imputar con la mediana <b>dentro del Pipeline</b>, calculada solo con entrenamiento. Los outliers se conservan: Haití 2010 es real.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 6 · OBJETIVO ===================== -->
+<section class="slide" id="objetivo" data-sec="EDA · Etiqueta">
+  <div><p class="eyebrow fx">Análisis exploratorio · Variable objetivo</p><h2 class="fx" style="--d:80">La etiqueta esconde dos poblaciones</h2></div>
+  <div class="row">
+    <div class="glass chart fx" style="--d:150"><div class="legend"><span id="ob-cap"><i class="sq" style="background:var(--teal)"></i>Todos los registros</span><span class="fx" data-step="1"><i class="sq" style="background:var(--amber)"></i>En desarrollo</span><span class="fx" data-step="1"><i class="sq" style="background:var(--sky)"></i>Desarrollados</span></div><div id="ob-svg"></div></div>
+    <div class="col grow1">
+      <div class="glass tile fx" style="--d:300"><p class="k">Mediana · IQR</p><p class="v"><span data-count="72.1" data-dec="1">72.1</span> años</p><p class="s">50 % central entre 63.1 y 75.7 años</p></div>
+      <div class="glass tile fx" style="--d:420"><p class="k">Asimetría</p><p class="v sm">−0.64</p><p class="s">Cola izquierda: por eso mediana e IQR, no media</p></div>
+      <div class="glass tile fx" data-step="1"><p class="k">Desbalance de Status</p><p class="v sm"><span class="am">82.6 %</span> · <span class="sk">17.4 %</span></p><p class="s">Proporción 5 : 1. Medianas de 69.1 y 79.3 años.</p></div>
+      <p class="callout fx" data-step="2">El modelo verá sobre todo países en desarrollo: un sesgo que hay que tener presente al leer sus errores.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 7 · CORRELACIÓN ===================== -->
+<section class="slide" id="correlacion" data-sec="EDA · Relaciones">
+  <div><p class="eyebrow fx">Análisis exploratorio · Relación con la etiqueta</p><h2 class="fx" style="--d:80">Las 12 variables más correlacionadas</h2></div>
+  <div class="row">
+    <div class="glass chart fx" style="--d:150" id="co-svg"></div>
+    <div class="col grow1" style="gap:16px">
+      <div class="glass col fx" data-step="1" style="gap:6px"><h3 class="co">Mortalidad adulta: r = −0.84</h3><p class="small">Casi mecánica: mide lo mismo desde otro lado. VIH/sida (−0.56) sí tiene vínculo causal documentado.</p></div>
+      <div class="glass col fx" data-step="2" style="gap:6px"><h3 class="tl">Educación e ingreso: 0.71 y 0.69</h3><p class="small">Entre ellas r = 0.80: capturan el mismo factor de desarrollo socioeconómico.</p></div>
+      <div class="glass col fx" data-step="3" style="gap:8px"><h3 class="am">Multicolinealidad</h3>
+        <table class="tbl" style="font-size:21px"><tr><td>thinness 1-19 · thinness 5-9</td><td class="num">0.94</td></tr><tr><td>GDP · % expenditure</td><td class="num">0.92</td></tr><tr><td>Schooling · Income</td><td class="num">0.80</td></tr><tr><td>Diphtheria · Polio</td><td class="num">0.67</td></tr></table></div>
+      <p class="small fx" style="--d:600">Pearson con datos imputados. Correlación no implica causalidad.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 8 · BRECHA ===================== -->
+<section class="slide" id="brecha" data-sec="EDA · Hallazgos">
+  <div><p class="eyebrow fx">Análisis exploratorio · Hallazgo</p><h2 class="fx" style="--d:80">Todos mejoran, pero la brecha casi no se cierra</h2></div>
+  <div class="row">
+    <div class="glass chart fx" style="--d:150"><div class="legend"><span><i style="background:var(--sky)"></i>Desarrollados</span><span><i style="background:var(--amber)"></i>En desarrollo</span><span>Media anual de esperanza de vida</span></div><div id="br-svg"></div></div>
+    <div class="col grow1">
+      <div class="glass tile fx" style="--d:400"><p class="k">Brecha 2000 → 2015</p><p class="v"><span class="co">12.2</span> → <span data-count="11.0" data-dec="1">11.0</span></p><p class="s">Años de diferencia entre ambos grupos</p></div>
+      <div class="glass col fx" data-step="1" style="gap:10px"><h3>Qué nos llevamos al modelado</h3>
+        <p class="cap">· Imputar en el Pipeline, sin fuga de información.</p>
+        <p class="cap">· Escalar para los modelos basados en distancias.</p>
+        <p class="cap">· Status como 0/1 y Year como variable.</p>
+        <p class="cap">· Ojo con las variables redundantes.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 9 · WORKFLOW ===================== -->
+<section class="slide" id="workflow" data-sec="Supervisado · Diseño">
+  <div><p class="eyebrow fx">Aprendizaje supervisado · Flujo de trabajo</p><h2 class="fx" style="--d:80">Un pipeline sin fuga de información</h2></div>
+  <div class="flow fx" style="--d:150">
+    <div class="glass node"><p class="tag">Datos</p><h3>2,928 filas</h3><p>Se quitan 10 sin etiqueta. Country fuera; Status → 0/1.</p></div>
+    <div class="link" style="--d:0"></div>
+    <div class="glass node"><p class="tag">Partición</p><h3>80 / 20</h3><p>2,342 de entrenamiento y 586 de prueba. Semilla 42.</p></div>
+    <div class="link" style="--d:300"></div>
+    <div class="glass node"><p class="tag">Pipeline</p><h3>Imputar → escalar → modelo</h3><p>Mediana. El escalado solo en SVR y red densa.</p></div>
+    <div class="link" style="--d:600"></div>
+    <div class="glass node"><p class="tag">Ajuste</p><h3>GridSearchCV</h3><p>K-fold de 5 sobre entrenamiento, criterio R².</p></div>
+    <div class="link" style="--d:900"></div>
+    <div class="glass node lock"><p class="tag">Prueba bloqueada</p><h3>Evaluación final</h3><p>R², MAE y RMSE en años sobre los 586.</p></div>
+  </div>
+  <div class="glass split fx" style="--d:350">
+    <div class="slabels"><span>Entrenamiento · 2,342 filas · validación cruzada de 5 particiones</span><span>Prueba · 586</span></div>
+    <div class="sbar"><div class="tr"><div class="fold" style="--i:0">Fold 1</div><div class="fold" style="--i:1">Fold 2</div><div class="fold" style="--i:2">Fold 3</div><div class="fold" style="--i:3">Fold 4</div><div class="fold" style="--i:4">Fold 5</div></div><div class="te">🔒 20 %</div></div>
+  </div>
+  <div class="grid4">
+    <div class="glass mchip fx" data-step="1" style="--c:var(--violet)"><h3>Árbol de decisión</h3><p>Reglas del tipo "¿VIH &gt; 1?". Ajuste: profundidad y hoja mínima.</p></div>
+    <div class="glass mchip fx" data-step="1" style="--c:var(--teal);--d:100"><h3>Random Forest</h3><p>Promedia muchos árboles. Ajuste: n.º de árboles, profundidad, hoja.</p></div>
+    <div class="glass mchip fx" data-step="1" style="--c:var(--sky);--d:200"><h3>SVR (kernel RBF)</h3><p>Tolera un margen ε. Ajuste: C, ε y γ.</p></div>
+    <div class="glass mchip fx" data-step="1" style="--c:var(--amber);--d:300"><span class="new">NUEVO</span><h3>Red densa (MLP)</h3><p>Capas, regularización α y tasa de aprendizaje, con early stopping.</p></div>
+  </div>
+  <p class="callout fx" data-step="2"><b>Métricas:</b> R² para comparar; MAE y RMSE en años porque se entienden y el RMSE castiga los errores grandes. R² train frente a test mide el sobreajuste.</p>
+</section>
+
+<!-- ===================== 10 · RESULTADOS ===================== -->
+<section class="slide" id="resultados" data-sec="Supervisado · Resultados">
+  <div><p class="eyebrow fx">Aprendizaje supervisado · Resultados en prueba</p><h2 class="fx" style="--d:80">Random Forest gana: error medio de un año</h2></div>
+  <div class="row">
+    <div class="glass chart fx" style="--d:150"><div class="legend"><span><i class="sq" style="background:rgba(237,245,243,.28)"></i>Base</span><span><i class="sq" style="background:var(--teal)"></i>Ajustado</span><span>MAE en prueba (años) · menor es mejor</span></div><div id="re-svg"></div></div>
+    <div class="col grow1" style="gap:14px">
+      <div class="glass fx" style="--d:300;padding:16px 20px"><table class="tbl" style="font-size:22px">
+        <tr><th>Ajustado</th><th class="num">R² train</th><th class="num">R² test</th><th class="num">RMSE</th></tr>
+        <tr><td>Árbol</td><td class="num">0.964</td><td class="num">0.933</td><td class="num">2.41</td></tr>
+        <tr class="win"><td>Random Forest</td><td class="num">0.995</td><td class="num">0.967</td><td class="num">1.69</td></tr>
+        <tr><td>SVR</td><td class="num">0.976</td><td class="num">0.932</td><td class="num">2.42</td></tr>
+        <tr><td>Red densa</td><td class="num">0.980</td><td class="num">0.933</td><td class="num">2.41</td></tr>
+      </table></div>
+      <p class="mono small fx" style="--d:450;font-size:19px">Árbol: prof. 8, hoja 5 · RF: 300 árboles, prof. 20 · SVR: C 10, ε 0.05 · MLP: 128-64-32, α 0.01</p>
+      <div class="glass col fx" data-step="1" style="gap:6px"><h3>El ajuste ayuda a quien sobreajusta</h3><p class="small">El árbol base memoriza (R² train 1.000, test 0.923); limitar su profundidad sube el test a 0.933. El SVR baja su MAE de 1.69 a 1.48.</p></div>
+      <p class="pill ok fx" data-step="2">Mejor: Random Forest base · R² 0.968 · MAE 1.05 · RMSE 1.68</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 11 · ANÁLISIS CRÍTICO ===================== -->
+<section class="slide" id="critico" data-sec="Supervisado · Análisis">
+  <div><p class="eyebrow fx">Aprendizaje supervisado · Análisis crítico</p><h2 class="fx" style="--d:80">¿Dónde se equivoca el mejor modelo?</h2></div>
+  <div class="row">
+    <div class="glass chart fx" style="--d:150"><div class="legend"><span><i class="dot" style="background:var(--teal)"></i>Cada punto: un país-año de prueba</span><span><i style="background:var(--ink)"></i>Predicción perfecta</span></div><div id="pv-svg"></div></div>
+    <div class="col grow1" style="gap:16px">
+      <div class="glass col fx" style="--d:300;gap:12px"><h3>MAE por rango de esperanza de vida</h3>
+        <div class="hb" style="--w:100%;--d:500;grid-template-columns:220px 1fr 90px"><span>&lt; 60 años · 111</span><div class="track"><div class="fill" style="background:var(--coral)"></div></div><span class="val">1.39</span></div>
+        <div class="hb" style="--w:83.2%;--d:650;grid-template-columns:220px 1fr 90px"><span>60 – 70 · 134</span><div class="track"><div class="fill" style="background:var(--amber)"></div></div><span class="val">1.16</span></div>
+        <div class="hb" style="--w:64.9%;--d:800;grid-template-columns:220px 1fr 90px"><span>&gt; 70 años · 341</span><div class="track"><div class="fill" style="background:var(--teal)"></div></div><span class="val">0.90</span></div></div>
+      <div class="glass col fx" data-step="1" style="gap:6px"><h3 class="co">Los errores grandes son crisis</h3><p class="small">Sudán del Sur 2000 (−9.5 años), Zimbabue 2015 (+8.4), Uganda 2013 (+7.5): cambios bruscos ligados al VIH que el modelo suaviza.</p></div>
+      <p class="callout fx" data-step="2">Hay menos datos de países con baja esperanza de vida y son más volátiles: justo donde más importa acertar.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 12 · IMPORTANCIA Y ROBUSTEZ ===================== -->
+<section class="slide" id="robustez" data-sec="Supervisado · Análisis">
+  <div><p class="eyebrow fx">Aprendizaje supervisado · Interpretación y robustez</p><h2 class="fx" style="--d:80">Qué usa el bosque y cuánto confiar en él</h2></div>
+  <div class="row">
+    <div class="glass col fx" style="--d:150;gap:22px;width:860px"><h3>Importancia de variables · Random Forest</h3>
+      <div class="hb" style="--w:100%;--d:300;grid-template-columns:280px 1fr 90px"><span>HIV/AIDS</span><div class="track"><div class="fill" style="background:var(--coral)"></div></div><span class="val">0.596</span></div>
+      <div class="hb" style="--w:28.5%;--d:400;grid-template-columns:280px 1fr 90px"><span>Income composition</span><div class="track"><div class="fill" style="background:var(--teal)"></div></div><span class="val">0.170</span></div>
+      <div class="hb" style="--w:21.0%;--d:500;grid-template-columns:280px 1fr 90px"><span>Adult Mortality</span><div class="track"><div class="fill" style="background:var(--teal)"></div></div><span class="val">0.125</span></div>
+      <div class="hb" style="--w:3.4%;--d:600;grid-template-columns:280px 1fr 90px"><span>BMI</span><div class="track"><div class="fill" style="background:var(--mut)"></div></div><span class="val">0.020</span></div>
+      <div class="hb" style="--w:2.7%;--d:700;grid-template-columns:280px 1fr 90px"><span>under-five deaths</span><div class="track"><div class="fill" style="background:var(--mut)"></div></div><span class="val">0.016</span></div>
+      <div class="hb" style="--w:1.8%;--d:800;grid-template-columns:280px 1fr 90px"><span>Schooling</span><div class="track"><div class="fill" style="background:var(--mut)"></div></div><span class="val">0.011</span></div>
+      <p class="small">Tres variables suman el 89 %. Coinciden con el EDA, pero el bosque prefiere VIH/sida a la escolaridad: con el ingreso ya cubre el factor de desarrollo.</p>
+    </div>
+    <div class="col grow1" style="gap:16px">
+      <div class="glass col fx" data-step="1" style="gap:10px"><h3>¿Y un país que nunca vio?</h3>
+        <table class="tbl"><tr><th>Modelo</th><th class="num">R² aleatorio</th><th class="num">R² por país</th><th class="num">MAE país</th></tr>
+          <tr class="win"><td>Random Forest</td><td class="num">0.963</td><td class="num">0.903</td><td class="num">2.11</td></tr>
+          <tr><td>SVR</td><td class="num">0.938</td><td class="num">0.852</td><td class="num">2.45</td></tr>
+          <tr><td>Red densa</td><td class="num">0.937</td><td class="num">0.829</td><td class="num">2.44</td></tr></table>
+        <p class="small">K-fold de 5 sobre los 2,928 registros frente a GroupKFold, que deja países completos fuera. Con la partición aleatoria, años vecinos del mismo país caen en train y test e inflan el resultado.</p></div>
+      <p class="callout fx" data-step="2"><b>¿Por qué gana el bosque?</b> Datos tabulares, pocos (2,342 filas) y con umbrales claros. Promediar árboles baja la varianza; la red densa no supera al SVR.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 13 · PCA ===================== -->
+<section class="slide" id="pca" data-sec="No supervisado · PCA">
+  <div><p class="eyebrow fx">No supervisado · Reducción de dimensionalidad</p><h2 class="fx" style="--d:80">¿Cuántas dimensiones necesitamos?</h2></div>
+  <div class="row">
+    <div class="glass chart fx" style="--d:150"><div class="legend"><span><i class="sq" style="background:rgba(63,214,192,.45)"></i>Varianza de cada componente</span><span><i style="background:var(--amber)"></i>Varianza acumulada</span></div><div id="pc-svg"></div></div>
+    <div class="col grow1" style="gap:16px">
+      <div class="glass col fx" style="--d:300;gap:6px"><h3>Diseño</h3><p class="small">Mismas 20 variables, imputadas y estandarizadas. PCA ajustado <b style="color:var(--ink)">solo con entrenamiento</b> para no filtrar información.</p></div>
+      <div class="glass tile fx" data-step="1"><p class="k">Umbrales de varianza</p><p class="v sm">9 · <span class="am">12</span> · 15</p><p class="s">Componentes para el 80 %, 90 % y 95 % de la varianza. Kaiser (autovalor &gt; 1): 6</p></div>
+      <div class="glass col fx" data-step="2" style="gap:6px"><h3 class="tl">PC1 = eje de desarrollo (29 %)</h3><p class="small">Positivo: escolaridad (0.32), ingreso (0.30), IMC (0.28). Negativo: delgadez (−0.31) y mortalidad (−0.22).</p></div>
+      <p class="callout fx" data-step="3">Conservamos <b>12 componentes</b>: 90 % de la varianza con 40 % menos de dimensiones.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 14 · CON VS SIN PCA ===================== -->
+<section class="slide" id="pcacmp" data-sec="No supervisado · PCA">
+  <div><p class="eyebrow fx">No supervisado · Comparación con la referencia</p><h2 class="fx" style="--d:80">Reducir dimensiones le cuesta caro al bosque</h2></div>
+  <div class="row">
+    <div class="glass chart fx" style="--d:150"><div class="legend"><span><i style="background:var(--teal)"></i>Random Forest</span><span><i style="background:var(--sky)"></i>SVR</span><span><i style="background:var(--amber)"></i>Red densa</span><span>Misma partición 80/20 y mismas métricas</span></div><div id="pk-svg"></div></div>
+    <div class="col grow1" style="gap:14px">
+      <div class="glass fx" data-step="1" style="padding:16px 20px"><table class="tbl" style="font-size:22px">
+        <tr><th>R² test</th><th class="num">20 var.</th><th class="num">12 PC</th><th class="num">15 PC</th></tr>
+        <tr><td>Random Forest</td><td class="num">0.967</td><td class="num co">0.867</td><td class="num">0.887</td></tr>
+        <tr><td>SVR</td><td class="num">0.932</td><td class="num">0.890</td><td class="num">0.932</td></tr>
+        <tr><td>Red densa</td><td class="num">0.933</td><td class="num">0.887</td><td class="num tl">0.942</td></tr></table>
+        <p class="small" style="margin-top:8px">MAE del bosque: 1.05 → 2.25 años con 12 componentes.</p></div>
+      <div class="glass col fx" data-step="2" style="gap:6px"><h3>¿Por qué?</h3><p class="small">Cada componente mezcla variables: el árbol pierde cortes limpios como "VIH/sida &gt; 1". SVR y la red, que ya trabajan en un espacio escalado, casi no lo notan con 15.</p></div>
+      <p class="callout fx" data-step="3">Con 20 variables no hay maldición de la dimensionalidad: <b>la referencia original sigue siendo mejor.</b></p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 15 · CLUSTERING ===================== -->
+<section class="slide" id="clusters" data-sec="No supervisado · Agrupamiento" data-steps="3">
+  <div><p class="eyebrow fx">No supervisado · Agrupamiento</p><h2 class="fx" style="--d:80" id="cl-h">K-means sobre 183 países, sin mirar la etiqueta</h2></div>
+  <div class="row">
+    <div class="col" style="width:560px;gap:14px">
+      <div class="glass chart fx" style="--d:150" id="el-svg"></div>
+      <p class="small fx" style="--d:300">Un punto por país: promedio 2000–2015, logaritmo a las variables asimétricas y estandarización. Ni la etiqueta ni Status entran.</p>
+    </div>
+    <div class="glass chart fx" style="--d:200"><div class="legend" id="cl-leg"></div><div id="sc-svg"></div></div>
+  </div>
+</section>
+
+<!-- ===================== 16 · PERFILES ===================== -->
+<section class="slide" id="perfiles" data-sec="No supervisado · Agrupamiento">
+  <div><p class="eyebrow fx">No supervisado · Interpretación</p><h2 class="fx" style="--d:80">Tres perfiles de país que la etiqueta confirma</h2></div>
+  <div class="grid3">
+    <div class="glass prof fx" style="--d:150;--c:var(--coral)"><p class="tile"><span class="k">Grupo 1 · 61 países</span></p><p class="big" data-count="58.8" data-dec="1">58.8</p><p class="small">años de esperanza de vida media</p>
+      <dl><dt>VIH/sida (por 1,000)</dt><dd>4.58</dd><dt>Escolaridad</dt><dd>8.8 años</dd><dt>Cobertura difteria</dt><dd>66 %</dd><dt>PIB mediano</dt><dd>$556</dd></dl><p class="ex">Nigeria, Sierra Leona, Lesoto, Haití</p></div>
+    <div class="glass prof fx" style="--d:300;--c:var(--violet)"><p class="tile"><span class="k">Grupo 2 · 75 países</span></p><p class="big" data-count="72.0" data-dec="1">72.0</p><p class="small">años de esperanza de vida media</p>
+      <dl><dt>VIH/sida (por 1,000)</dt><dd>0.47</dd><dt>Escolaridad</dt><dd>12.4 años</dd><dt>Cobertura difteria</dt><dd>89 %</dd><dt>PIB mediano</dt><dd>$2,948</dd></dl><p class="ex">Colombia, México, Egipto, Ucrania</p></div>
+    <div class="glass prof fx" style="--d:450;--c:var(--teal)"><p class="tile"><span class="k">Grupo 3 · 47 países</span></p><p class="big" data-count="78.3" data-dec="1">78.3</p><p class="small">años de esperanza de vida media</p>
+      <dl><dt>VIH/sida (por 1,000)</dt><dd>0.11</dd><dt>Escolaridad</dt><dd>15.6 años</dd><dt>Cobertura difteria</dt><dd>93 %</dd><dt>PIB mediano</dt><dd>$13,899</dd></dl><p class="ex">Japón, Noruega, Alemania, Chile</p></div>
+  </div>
+  <div class="grid2">
+    <div class="glass col fx" data-step="1" style="gap:12px"><h3>Contraste con la esperanza de vida real</h3>
+      <div class="stk">
+        <span class="co">Grupo 1</span><div class="b"><i style="--w:57.4%;background:var(--coral);--d:200">35</i><i style="--w:37.7%;background:var(--amber);--d:350">23</i><i style="--w:4.9%;background:var(--teal);--d:500">3</i></div>
+        <span class="vi">Grupo 2</span><div class="b"><i style="--w:2.7%;background:var(--coral);--d:300">&nbsp;</i><i style="--w:22.7%;background:var(--amber);--d:450">17</i><i style="--w:74.6%;background:var(--teal);--d:600">56</i></div>
+        <span class="tl">Grupo 3</span><div class="b"><i style="--w:0%;background:var(--coral)"></i><i style="--w:4.3%;background:var(--amber);--d:550">&nbsp;</i><i style="--w:95.7%;background:var(--teal);--d:700">45</i></div>
+      </div>
+      <p class="small"><span class="co">■</span> menos de 60 años · <span class="am">■</span> 60 a 70 · <span class="tl">■</span> más de 70. 35 de los 37 países con menos de 60 años caen en el grupo 1, sin haber visto la etiqueta.</p></div>
+    <div class="glass col fx" data-step="2" style="gap:12px"><h3>Contraste con Status</h3>
+      <div class="stk">
+        <span class="co">Grupo 1</span><div class="b"><i style="--w:100%;background:var(--amber);--d:200">61</i></div>
+        <span class="vi">Grupo 2</span><div class="b"><i style="--w:98.7%;background:var(--amber);--d:300">74</i><i style="--w:1.3%;background:var(--sky);--d:450">&nbsp;</i></div>
+        <span class="tl">Grupo 3</span><div class="b"><i style="--w:34%;background:var(--amber);--d:400">16</i><i style="--w:66%;background:var(--sky);--d:550">31</i></div>
+      </div>
+      <p class="small"><span class="am">■</span> en desarrollo · <span class="sk">■</span> desarrollado. 31 de 32 desarrollados caen en el grupo 3, junto a 16 "en desarrollo" como Chile: Status es más gruesa (ARI = 0.23).</p></div>
+  </div>
+</section>
+
+<!-- ===================== 17 · CONCLUSIONES ===================== -->
+<section class="slide" id="conclusiones" data-sec="Conclusiones">
+  <div><p class="eyebrow fx">Conclusiones</p><h2 class="fx" style="--d:80">Qué aprendimos y cómo se conecta con el curso</h2></div>
+  <div class="grid3">
+    <div class="glass cn fx" style="--d:150"><p class="n">01 · EDA</p><p><b>Limpiar fue la mitad del trabajo:</b> ceros falsos, saltos de mortalidad y nulos guiaron el pipeline.</p></div>
+    <div class="glass cn fx" style="--d:280"><p class="n">02 · SUPERVISADO</p><p><b>Random Forest predice con 1.05 años de error</b> (R² 0.968). La red densa empata con el SVR, no los supera.</p></div>
+    <div class="glass cn fx" style="--d:410"><p class="n">03 · SESGO Y VARIANZA</p><p><b>Un árbol solo memoriza;</b> limitarlo o promediar muchos generaliza mejor. Visto en R² train frente a test.</p></div>
+    <div class="glass cn fx" style="--d:540"><p class="n">04 · REDUCCIÓN</p><p><b>12 componentes guardan el 90 %</b> de la varianza, pero la predicción empeora: con 20 variables no compensa.</p></div>
+    <div class="glass cn fx" style="--d:670"><p class="n">05 · AGRUPAMIENTO</p><p><b>Sin etiqueta aparecen tres perfiles de desarrollo</b> que coinciden con la esperanza de vida real.</p></div>
+    <div class="glass cn fx" style="--d:800"><p class="n">06 · LIMITACIONES Y MEJORAS</p><p><b>Validar por país es más honesto</b> (R² 0.90). Siguiente: imputar por país, transformar con log y probar boosting.</p></div>
+  </div>
+  <div class="course fx" style="--d:1000"><p class="small" style="margin-right:8px">Conceptos del curso aplicados:</p><span>Pipeline sin fuga</span><span>Validación cruzada</span><span>Sesgo y varianza</span><span>Regularización</span><span>Escalado</span><span>Métricas de regresión</span><span>PCA</span><span>K-means y silueta</span></div>
+</section>
+
+<!-- ===================== 18 · CIERRE ===================== -->
+<section class="slide" id="cierre" data-sec="Cierre">
+  <canvas class="ecg" id="ecg" width="1920" height="160" aria-hidden="true"></canvas>
+  <p class="eyebrow fx">Mensaje final</p>
+  <h1 id="msg-h">Predecir la media es fácil; lo difícil son los países en <em>crisis</em></h1>
+  <p class="lead fx" data-step="1" style="width:1450px;color:var(--ink)">Ahí el error crece, hay menos datos y es donde una política de salud más importa. Gracias. ¿Preguntas?</p>
+  <div class="grid2 fx" data-step="1" style="width:1500px;--d:200">
+    <div class="glass col" style="gap:6px"><h3>Equipo · Grupo E1</h3><p class="cap mut">Arnold Steven Navarro · Christian Jhose Moreno Rios · Julian Andres Rodriguez Montero · Marcelo Gomez Cabra</p></div>
+    <div class="glass col" style="gap:6px"><h3>Fuentes</h3><p class="cap mut">Life Expectancy (WHO), Kaggle, kumarajarshi. WHO Global Health Observatory. scikit-learn.</p></div>
+  </div>
+</section>
+
+<div id="hud"><span id="h-sec"></span><span id="h-spk"></span><div class="bar"><i></i></div><span id="h-t" title="Cronómetro: arranca al avanzar, T lo reinicia">00:00</span><span id="h-n"></span></div>
+</main>
+<div id="ctl"><button id="b-prev" type="button" aria-label="Anterior">◀ Anterior</button><button id="b-next" type="button" aria-label="Siguiente">Siguiente ▶</button><button id="b-full" type="button">Pantalla completa (F)</button></div>
+<script>
+const DATA = {"hist":{"e":[36,38,40,42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80,82,84,86,88],"c":[1,1,2,5,27,38,48,52,84,89,104,138,57,136,151,166,201,141,418,368,203,234,114,82,23,34],"dev":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,16,40,52,57,141,88,67,15,27],"dvg":[1,1,2,5,27,38,48,52,84,89,104,138,57,136,151,166,200,125,378,316,146,93,26,15,8,7]},"yr":{"y":[2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015],"dev":[76.8,77.13,77.55,77.94,78.38,78.59,79.13,79.3,78.93,79.58,80.15,80.71,80.44,80.68,81.14,80.71],"dvg":[64.62,65.01,65.19,65.21,65.37,66.01,66.45,66.86,67.41,67.89,67.91,68.52,68.9,69.23,69.5,69.69]},"pv":[[56.5,55.2],[73.0,70.2],[82.5,82.4],[75.6,76.0],[53.0,53.8],[65.2,65.0],[72.4,73.8],[74.1,73.8],[77.0,76.2],[67.8,68.0],[73.1,73.8],[75.1,75.0],[44.3,45.0],[47.9,47.7],[74.3,73.5],[74.6,74.6],[78.4,78.3],[77.7,77.2],[79.1,79.5],[73.3,73.3],[62.8,60.0],[82.5,83.2],[54.0,52.0],[63.4,61.9],[72.0,69.6],[47.8,47.2],[52.1,52.2],[75.1,75.1],[65.6,65.6],[78.4,79.0],[73.9,72.8],[76.3,75.0],[61.2,63.3],[69.6,69.3],[72.7,73.3],[57.9,57.2],[74.5,74.3],[69.4,70.3],[77.0,76.5],[75.4,73.6],[57.7,57.7],[67.3,67.5],[78.5,78.2],[54.2,55.6],[47.6,49.4],[68.9,69.4],[79.4,80.6],[67.6,68.9],[63.3,64.0],[59.8,60.7],[71.7,73.2],[73.2,73.1],[66.5,67.6],[58.6,59.0],[67.7,67.8],[72.8,72.9],[69.2,69.5],[72.8,73.4],[76.4,75.6],[53.3,54.5],[72.5,72.6],[69.0,68.4],[59.4,60.8],[56.0,53.1],[54.1,53.4],[81.9,82.6],[64.5,60.0],[55.3,55.2],[73.0,74.1],[72.4,72.5],[75.5,72.5],[85.0,81.8],[74.1,73.8],[75.6,75.5],[53.2,51.7],[75.2,74.9],[74.9,74.8],[74.7,74.5],[73.3,73.4],[77.3,75.8],[75.9,75.1],[83.0,81.1],[71.3,70.1],[63.8,63.9],[76.8,76.3],[65.9,65.6],[74.1,74.6],[79.1,80.8],[77.8,77.3],[77.5,77.1],[62.2,62.9],[79.5,79.3],[81.1,82.4],[77.7,79.6],[65.3,65.4],[51.9,52.9],[74.7,74.9],[67.3,67.3],[66.2,65.6],[84.0,82.3],[69.6,69.6],[51.2,53.0],[74.6,75.0],[76.9,76.1],[58.0,56.1],[75.6,75.9],[57.4,58.3],[75.7,74.6],[63.3,63.2],[67.3,66.6],[82.1,82.3],[71.0,72.4],[81.8,82.2],[62.9,62.6],[75.3,75.7],[83.0,82.0],[82.7,83.1],[72.9,73.1],[59.8,62.6],[75.2,76.0],[73.0,72.9],[76.0,75.2],[72.2,71.9],[71.1,72.1],[74.3,73.7],[70.0,70.2],[69.5,69.4],[74.4,74.6],[69.9,72.8],[75.6,75.1],[73.6,72.6],[67.9,68.8],[54.0,58.3],[81.5,81.3],[86.0,83.5],[74.0,74.0],[79.0,79.9],[64.4,65.1],[79.0,79.0],[82.5,82.3],[72.8,73.6],[71.6,73.2],[64.0,64.1],[81.5,81.8],[74.6,74.5],[56.5,57.2],[78.7,79.3],[55.3,56.1],[81.6,81.9],[67.1,67.2],[52.1,55.2],[74.9,75.4],[59.9,61.1],[82.0,82.2],[77.5,77.7],[76.5,76.7],[73.5,73.2],[76.5,76.7],[57.9,57.7],[66.8,66.9],[68.7,70.3],[61.3,62.5],[74.7,74.8],[54.6,54.4],[49.2,50.5],[72.6,70.8],[66.5,65.3],[77.0,72.3],[51.2,52.2],[71.9,72.1],[67.6,67.7],[71.0,71.7],[51.3,53.0],[77.2,76.6],[76.7,76.1],[55.7,58.7],[62.8,63.2],[87.0,84.3],[59.6,63.2],[65.3,66.8],[67.0,59.8],[43.8,45.0],[73.6,73.0],[73.6,74.7],[75.6,74.6],[73.5,73.3],[62.9,63.7],[74.2,75.0],[78.5,78.6],[78.0,78.1],[73.8,73.8],[81.7,83.1],[82.0,82.3],[57.6,57.4],[74.8,74.7],[73.9,74.4],[51.7,51.7],[79.8,82.0],[67.5,67.4],[62.3,63.3],[56.4,56.0],[75.3,74.4],[51.9,55.2],[74.8,74.3],[72.5,72.1],[80.0,82.4],[81.6,81.8],[45.3,49.8],[66.1,67.2],[79.4,80.9],[65.0,64.9],[71.6,71.8],[75.8,76.0],[73.6,73.1],[79.1,79.5],[76.0,76.1],[52.0,53.7],[76.3,77.3],[68.3,68.3],[74.4,75.5],[74.1,74.3],[68.1,68.4],[72.7,72.7],[67.1,67.5],[81.0,82.4],[52.4,54.5],[75.7,74.3],[61.0,65.2],[73.5,72.7],[81.3,81.8],[69.0,62.2],[71.4,72.7],[73.3,74.2],[79.3,79.4],[51.6,53.1],[57.3,56.4],[73.0,72.2],[76.6,77.3],[77.0,76.6],[58.6,57.6],[78.8,78.9],[68.0,67.5],[79.8,81.0],[74.9,74.7],[73.9,74.0],[79.3,80.3],[72.1,72.8],[71.7,71.5],[79.9,82.0],[62.1,61.6],[83.0,83.1],[62.2,63.0],[73.1,73.0],[73.0,73.0],[67.7,67.8],[79.8,80.6],[81.7,82.1],[75.2,75.5],[79.4,81.0],[72.2,72.6],[74.0,73.7],[71.2,72.7],[55.0,56.0],[71.0,71.9],[46.3,48.7],[59.5,60.9],[75.2,74.7],[51.4,53.6],[58.5,57.8],[52.5,53.2],[79.2,79.8],[65.5,66.5],[73.3,72.5],[75.4,76.0],[82.1,82.4],[76.7,75.7],[54.0,52.5],[76.4,77.6],[78.0,78.2],[77.0,70.8],[61.6,62.1],[58.0,57.8],[76.0,75.4],[74.7,76.3],[59.0,60.3],[73.5,73.8],[77.5,77.0],[75.4,74.5],[71.0,71.1],[75.4,76.0],[77.0,73.3],[48.2,50.0],[72.6,73.1],[74.5,73.3],[72.8,72.4],[79.3,81.6],[53.1,54.9],[67.7,67.1],[75.0,74.5],[46.0,47.3],[71.4,68.0],[72.9,74.2],[68.7,70.3],[72.5,72.9],[77.1,78.3],[60.0,61.8],[55.3,57.7],[65.0,65.0],[56.3,57.2],[78.0,77.9],[74.6,74.7],[63.8,64.4],[74.3,74.5],[81.3,81.5],[71.6,71.2],[66.2,69.2],[61.3,62.8],[68.8,68.8],[72.1,72.0],[69.0,68.7],[68.9,68.7],[62.8,61.4],[74.2,73.6],[72.0,72.6],[58.0,51.0],[73.9,74.4],[69.8,70.4],[76.0,72.1],[79.3,78.7],[48.9,58.4],[74.3,74.2],[79.7,80.3],[79.9,81.2],[72.1,72.3],[67.1,66.9],[63.7,63.7],[68.0,61.6],[62.5,63.1],[72.3,72.2],[67.0,58.6],[75.0,74.8],[61.8,62.5],[72.0,72.8],[64.4,65.3],[58.4,58.8],[73.3,73.1],[74.7,74.4],[77.5,79.0],[75.7,75.0],[73.0,73.8],[79.0,71.6],[52.7,53.6],[66.0,67.4],[75.0,75.1],[74.1,73.9],[69.9,68.6],[72.3,72.8],[75.4,75.4],[59.1,57.9],[79.9,82.8],[56.5,57.4],[71.1,74.4],[75.4,75.9],[57.4,58.5],[63.8,63.8],[84.0,82.3],[79.3,80.0],[79.1,81.2],[73.0,73.9],[54.5,54.4],[71.1,74.0],[74.2,74.5],[51.4,52.2],[76.0,77.4],[63.9,64.7],[77.7,78.3],[80.0,81.5],[82.0,82.5],[63.9,62.8],[73.5,73.6],[78.9,79.5],[66.0,62.2],[81.3,82.2],[73.0,74.0],[64.0,65.3],[68.2,68.2],[79.0,79.1],[78.1,79.3],[72.0,72.6],[73.5,72.7],[55.0,54.4],[62.1,62.9],[49.7,51.3],[86.0,82.4],[73.1,73.3],[72.3,72.4],[68.0,67.7],[78.3,78.2],[80.0,81.4],[71.6,70.6],[66.8,69.7],[73.3,73.4],[65.7,66.1],[73.0,73.3],[62.6,63.2],[61.4,62.2],[60.0,61.2],[68.2,70.8],[66.5,66.8],[78.2,78.4],[63.5,64.3],[52.7,55.0],[59.3,58.5],[86.0,83.0],[74.4,73.9],[71.3,71.1],[78.0,72.4],[66.0,67.6],[63.6,68.3],[77.3,78.7],[70.0,72.2],[74.5,74.4],[79.3,78.7],[75.8,75.2],[79.6,81.0],[69.7,73.3],[64.4,60.2],[78.0,79.3],[73.1,73.0],[51.9,51.7],[74.7,74.5],[83.4,82.6],[74.4,74.3],[73.3,73.4],[76.3,75.8],[76.5,75.8],[83.0,80.8],[68.7,68.2],[75.1,74.4],[52.8,58.1],[67.3,67.7],[55.3,55.8],[83.5,83.5],[42.3,45.8],[84.0,83.3],[77.0,74.6],[73.2,73.6],[79.0,73.8],[75.0,71.2],[68.1,68.2],[51.9,52.3],[65.1,65.5],[68.0,67.9],[74.3,75.4],[66.1,67.5],[73.0,70.6],[72.1,71.8],[71.4,71.3],[75.2,75.1],[59.7,58.3],[63.7,64.2],[82.0,82.5],[75.2,75.1],[72.2,72.1],[66.7,66.7],[76.3,76.1],[76.2,75.3],[71.4,72.0],[56.0,53.1],[79.0,73.0],[57.4,56.9],[80.0,81.7],[62.2,62.7],[64.2,64.2],[59.8,59.9],[46.0,45.2],[56.1,56.6],[69.2,68.3],[72.7,72.5],[73.6,73.5],[73.3,74.1],[54.8,54.5],[72.8,73.1],[75.2,73.5],[64.7,63.9],[75.0,73.9],[47.4,47.8],[63.3,64.5],[76.2,76.1],[51.0,53.6],[64.1,65.0],[58.9,57.6],[49.6,51.4],[72.4,72.7],[72.8,73.2],[53.1,53.6],[59.2,59.5],[62.3,62.5],[53.3,52.1],[69.1,69.5],[58.2,57.8],[68.4,68.5],[73.1,72.7],[69.4,68.1],[79.8,80.6],[73.7,73.9],[56.1,57.0],[52.5,54.7],[70.0,70.4],[48.2,48.9],[66.2,66.7],[73.2,72.2],[73.4,71.9],[74.8,74.9],[81.2,85.1],[77.5,77.3],[73.9,73.8],[69.9,72.1],[77.2,77.3],[81.0,82.3],[74.9,74.5],[73.3,71.6],[73.5,73.6],[65.0,65.6],[53.8,53.5],[88.0,83.5],[67.0,59.5],[71.7,75.3],[78.1,77.4],[77.3,76.7],[71.0,73.2],[87.0,80.6],[58.0,53.6],[68.7,69.7],[71.1,72.6],[61.0,63.7],[72.9,73.3],[52.0,51.7],[51.5,52.3],[66.2,66.4],[74.9,74.7],[56.7,57.2],[67.7,68.2],[56.2,55.3],[82.4,82.8],[71.1,67.1],[72.8,72.9],[53.8,54.4],[55.9,56.3],[79.5,79.7],[81.0,82.1],[79.5,81.4],[72.8,73.5],[75.1,75.2],[48.6,49.1],[44.5,45.3],[84.0,84.4],[65.5,65.9],[75.0,71.7],[67.3,66.2],[58.1,55.8],[51.1,51.7],[65.8,64.2],[75.0,73.9],[73.6,73.7],[79.4,79.3],[82.4,82.3],[69.4,70.1],[78.4,78.5],[73.3,74.0],[62.9,62.1],[72.1,72.7],[76.6,76.0],[54.4,54.9],[74.3,74.7],[53.8,54.5],[69.4,69.2],[73.0,73.7],[72.3,71.3],[73.0,72.5],[74.3,73.9],[69.1,69.5],[74.8,75.8],[65.6,65.4],[66.0,61.6],[65.7,65.9]],"mae_rng":[["0-60",111,1.391144144144146],["60-70",134,1.1567537313432856],["70-100",341,0.9025718475073345]],"cum":[0.2934,0.4225,0.5086,0.5779,0.6413,0.6935,0.7366,0.7772,0.816,0.8484,0.877,0.9041,0.9258,0.9471,0.9659,0.9819,0.9917,0.9966,0.9999,1.0],"ev":[0.2934,0.129,0.0861,0.0692,0.0634,0.0522,0.0431,0.0406,0.0388,0.0324,0.0286,0.0271,0.0217,0.0212,0.0188,0.0161,0.0098,0.0049,0.0033,0.0001],"pcacmp":{"Random Forest":[[20,0.9675,1.053],[2,0.7079,3.713],[5,0.8469,2.488],[8,0.8666,2.271],[10,0.8618,2.314],[12,0.8672,2.247],[15,0.8869,2.055]],"SVR":[[20,0.9322,1.481],[2,0.74,3.433],[5,0.8383,2.596],[8,0.8797,2.114],[10,0.8836,2.099],[12,0.8903,2.028],[15,0.9321,1.512]],"Red densa (MLP)":[[20,0.9329,1.559],[2,0.7478,3.438],[5,0.8466,2.511],[8,0.8993,1.984],[10,0.8876,2.133],[12,0.8867,2.15],[15,0.9423,1.524]]},"clus":{"pts":[["Afghanistan",-5.457,0.652,0,0,0,58.2],["Albania",2.381,0.495,1,1,0,75.2],["Algeria",-0.211,1.791,1,1,0,73.6],["Angola",-4.348,-1.115,0,0,0,49.0],["Antigua and Barbuda",2.02,0.289,1,1,0,75.1],["Argentina",2.601,0.116,1,2,0,75.2],["Armenia",1.247,0.073,1,1,0,73.4],["Australia",4.329,-0.267,1,2,1,81.8],["Austria",3.441,-0.274,1,2,1,81.5],["Azerbaijan",-0.007,-0.45,1,1,0,70.7],["Bahamas",2.279,-0.384,1,1,0,74.3],["Bahrain",2.545,1.56,1,1,0,75.7],["Bangladesh",-4.022,3.729,0,0,0,69.3],["Barbados",2.71,-0.349,1,2,0,74.4],["Belarus",2.523,-0.378,1,2,0,69.9],["Belgium",3.745,-0.135,1,2,1,80.7],["Belize",2.226,-0.124,1,1,0,69.3],["Benin",-3.706,-0.175,0,0,0,57.6],["Bhutan",-2.236,2.351,0,0,0,66.2],["Bolivia (Plurinational State of)",0.408,-0.12,1,1,0,67.7],["Bosnia and Herzegovina",1.116,-1.204,1,1,0,76.0],["Botswana",-0.887,-0.079,0,1,0,56.0],["Brazil",1.123,1.61,1,2,0,73.4],["Brunei Darussalam",2.195,1.842,1,1,0,76.5],["Bulgaria",2.519,0.311,1,2,1,72.8],["Burkina Faso",-4.015,0.184,0,0,0,55.6],["Burundi",-3.322,0.765,0,0,0,55.5],["Cabo Verde",0.361,-0.1,1,1,0,72.5],["Cambodia",-3.123,1.049,0,0,0,64.3],["Cameroon",-3.587,-0.112,0,0,0,54.0],["Canada",2.808,-1.418,1,2,0,81.7],["Central African Republic",-5.471,-2.833,0,0,0,48.5],["Chad",-6.091,-2.898,0,0,0,50.4],["Chile",2.739,-0.559,1,2,0,79.5],["China",-1.272,1.932,0,1,0,74.3],["Colombia",0.749,-0.048,1,1,0,73.3],["Comoros",-2.178,-0.666,0,0,0,61.6],["Congo",-4.001,-1.362,0,0,0,59.0],["Costa Rica",1.987,-1.323,1,2,0,78.6],["Croatia",3.659,-0.221,1,2,1,76.1],["Cuba",2.661,0.636,1,1,0,78.0],["Cyprus",4.051,-0.348,1,2,1,79.7],["Czechia",2.648,0.125,1,2,1,76.8],["C\u00f4te d'Ivoire",-3.499,-0.579,0,0,0,50.4],["Democratic People's Republic of Korea",-0.419,1.339,1,1,0,69.2],["Democratic Republic of the Congo",-4.786,-0.255,0,0,0,55.7],["Denmark",4.233,-0.686,1,2,1,79.3],["Djibouti",-2.065,-1.272,0,0,0,60.8],["Dominican Republic",0.366,-0.754,1,1,0,72.3],["Ecuador",0.768,-0.203,1,1,0,74.7],["Egypt",-0.371,1.803,1,1,0,71.5],["El Salvador",1.398,-0.623,1,1,0,71.7],["Equatorial Guinea",-3.554,-4.306,0,0,0,55.3],["Eritrea",-3.462,0.686,0,0,0,60.7],["Estonia",3.383,-0.402,1,2,0,74.9],["Ethiopia",-5.75,-0.642,0,0,0,59.1],["Fiji",1.918,0.823,1,1,0,68.7],["Finland",4.469,-0.403,1,2,0,80.7],["France",3.015,-0.146,1,2,0,82.2],["Gabon",-1.608,-1.998,0,0,0,62.2],["Gambia",-1.664,0.925,0,1,0,59.5],["Georgia",1.351,-1.097,1,1,0,73.5],["Germany",2.981,0.576,1,2,1,81.2],["Ghana",-3.065,0.717,0,0,0,60.9],["Greece",4.045,-0.482,1,2,0,81.2],["Grenada",2.013,-0.034,1,1,0,73.3],["Guatemala",0.294,-0.587,1,1,0,71.7],["Guinea",-4.954,-1.126,0,0,0,56.0],["Guinea-Bissau",-2.963,-0.792,0,0,0,55.4],["Guyana",0.851,-0.486,1,1,0,65.6],["Haiti",-2.865,-2.781,0,0,0,59.9],["Honduras",1.133,0.038,1,1,0,73.0],["Hungary",3.5,-0.422,1,2,1,73.8],["Iceland",4.556,-1.06,1,2,1,82.4],["India",-7.26,4.509,0,0,0,65.4],["Indonesia",-2.852,1.121,0,0,0,67.6],["Iran (Islamic Republic of)",-0.303,2.679,1,1,0,73.9],["Iraq",-1.879,-0.114,0,0,0,70.4],["Ireland",4.228,-0.722,1,2,1,80.2],["Israel",3.551,-0.16,1,2,0,81.3],["Italy",3.514,0.617,1,2,1,82.2],["Jamaica",1.528,-0.602,1,1,0,74.3],["Japan",2.581,0.473,1,2,1,82.5],["Jordan",1.677,0.937,1,1,0,73.0],["Kazakhstan",1.145,1.267,1,1,0,66.8],["Kenya",-4.265,0.186,0,0,0,57.5],["Kiribati",1.369,-2.451,1,1,0,65.2],["Kuwait",2.81,1.341,1,1,0,73.8],["Kyrgyzstan",0.183,1.008,1,1,0,69.1],["Lao People's Democratic Republic",-2.863,-0.498,0,0,0,62.4],["Latvia",3.212,-0.24,1,2,1,73.7],["Lebanon",0.581,-0.793,1,1,0,74.2],["Lesotho",-3.208,-1.901,0,0,0,48.8],["Liberia",-3.914,-1.979,0,0,0,57.5],["Libya",1.286,1.78,1,1,0,72.5],["Lithuania",3.421,-0.098,1,2,1,72.8],["Luxembourg",4.647,-0.512,1,2,1,80.8],["Madagascar",-4.064,0.068,0,0,0,62.7],["Malawi",-3.92,0.375,0,0,0,49.9],["Malaysia",0.153,2.68,1,1,0,73.8],["Maldives",0.727,1.824,1,1,0,75.5],["Mali",-3.96,-0.409,0,0,0,54.9],["Malta",3.872,-1.314,1,2,1,80.4],["Mauritania",-3.128,-0.862,0,0,0,62.8],["Mauritius",1.288,1.411,1,1,0,72.7],["Mexico",1.309,1.104,1,1,0,75.7],["Micronesia (Federated States of)",1.568,-1.774,1,1,0,68.2],["Mongolia",0.941,0.928,1,1,0,65.9],["Montenegro",1.631,-1.94,1,1,0,74.5],["Morocco",-0.459,2.154,1,1,0,72.2],["Mozambique",-4.192,-0.993,0,0,0,53.4],["Myanmar",-4.341,2.003,0,0,0,64.2],["Namibia",-1.607,-0.112,0,0,0,60.4],["Nepal",-4.19,2.315,0,0,0,66.5],["Netherlands",3.484,-0.505,1,2,1,81.1],["New Zealand",3.751,-1.414,1,2,1,81.3],["Nicaragua",1.096,-0.285,1,1,0,73.5],["Niger",-5.506,-0.545,0,0,0,57.0],["Nigeria",-6.118,-0.83,0,0,0,51.4],["Norway",4.225,-0.621,1,2,1,81.8],["Oman",1.512,2.005,1,1,0,74.8],["Pakistan",-5.35,2.721,0,0,0,64.5],["Panama",2.166,-1.037,1,2,0,76.5],["Papua New Guinea",-2.213,-1.763,0,0,0,61.7],["Paraguay",1.203,-0.63,1,1,0,73.1],["Peru",0.997,-0.147,1,1,0,73.7],["Philippines",-2.226,0.935,0,0,0,67.6],["Poland",2.863,0.829,1,2,1,75.7],["Portugal",3.987,-0.454,1,2,1,80.0],["Qatar",2.693,1.221,1,1,0,77.0],["Republic of Korea",0.936,0.82,1,1,0,80.5],["Republic of Moldova",0.871,-0.114,1,1,0,70.0],["Romania",1.774,0.909,1,2,1,74.0],["Russian Federation",1.376,1.104,1,2,0,67.8],["Rwanda",-2.396,0.765,0,0,0,59.3],["Saint Lucia",1.549,-0.483,1,1,0,73.6],["Saint Vincent and the Grenadines",1.698,0.501,1,1,0,73.5],["Samoa",1.314,-3.234,1,1,0,73.6],["Sao Tome and Principe",0.339,-0.288,1,1,0,65.2],["Saudi Arabia",1.162,2.46,1,1,0,73.5],["Senegal",-3.22,1.193,0,0,0,62.6],["Serbia",2.348,0.192,1,2,0,74.0],["Seychelles",2.036,0.728,1,1,0,72.4],["Sierra Leone",-3.379,-0.397,0,0,0,46.1],["Singapore",2.691,1.192,1,1,1,81.5],["Slovakia",3.053,0.043,1,2,1,74.8],["Slovenia",4.106,-0.718,1,2,1,79.7],["Solomon Islands",0.7,-1.484,1,1,0,67.7],["Somalia",-5.101,-2.163,0,0,0,53.3],["South Africa",-2.862,-0.821,0,0,0,57.5],["South Sudan",-5.195,-3.501,0,0,0,53.9],["Spain",3.733,0.407,1,2,1,82.1],["Sri Lanka",-0.908,2.895,0,1,0,73.4],["Sudan",-2.581,-0.098,0,0,0,61.8],["Suriname",1.525,-1.487,1,1,0,70.1],["Swaziland",-1.469,-1.407,0,0,0,51.3],["Sweden",4.047,-0.747,1,2,1,82.5],["Switzerland",4.09,0.002,1,2,1,82.3],["Syrian Arab Republic",-1.76,-0.647,0,0,0,70.8],["Tajikistan",-0.952,0.728,0,1,0,66.7],["Thailand",-0.396,2.849,1,1,0,73.1],["The former Yugoslav republic of Macedonia",1.396,0.113,1,1,0,74.1],["Timor-Leste",-2.649,0.502,0,0,0,64.8],["Togo",-3.415,-0.195,0,0,0,56.7],["Tonga",2.179,-2.215,1,1,0,72.5],["Trinidad and Tobago",0.8,-1.547,1,1,0,71.1],["Tunisia",1.6,1.756,1,1,0,74.4],["Turkey",-0.143,1.31,1,1,0,73.9],["Turkmenistan",-0.281,0.834,1,1,0,64.6],["Uganda",-3.88,-1.045,0,0,0,55.7],["Ukraine",0.107,-1.08,1,1,0,69.9],["United Arab Emirates",2.216,1.477,1,1,0,75.7],["United Kingdom of Great Britain and Northern Ireland",1.742,-0.233,1,2,1,80.8],["United Republic of Tanzania",-3.216,0.625,0,0,0,56.0],["United States of America",1.599,-0.846,1,2,1,78.1],["Uruguay",3.259,-0.421,1,2,0,76.1],["Uzbekistan",-0.161,1.237,1,1,0,68.0],["Vanuatu",-0.144,-2.607,1,1,0,71.4],["Venezuela (Bolivarian Republic of)",0.066,-1.003,1,1,0,73.4],["Viet Nam",-2.353,3.525,0,0,0,74.8],["Yemen",-3.887,1.201,0,0,0,63.9],["Zambia",-3.743,-0.637,0,0,0,53.9],["Zimbabwe",-3.993,-1.076,0,0,0,50.5]],"inertia":[2052.9,1806.0,1663.8,1534.9,1419.8,1335.8,1256.9,1193.5,1159.9],"sil":[0.3459,0.203,0.1674,0.1686,0.1742,0.1833,0.193,0.1874,0.175]}};
+const NOTES = [{"spk": "Arnold"}, {"spk": "Arnold"}, {"spk": "Arnold"}, {"spk": "Arnold"}, {"spk": "Christian"}, {"spk": "Christian"}, {"spk": "Christian"}, {"spk": "Christian"}, {"spk": "Julian"}, {"spk": "Julian"}, {"spk": "Julian"}, {"spk": "Julian"}, {"spk": "Marcelo"}, {"spk": "Marcelo"}, {"spk": "Marcelo"}, {"spk": "Marcelo"}, {"spk": "Marcelo"}, {"spk": "Todos"}];
+/* ============ utilidades ============ */
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const NSV = 'http://www.w3.org/2000/svg';
+function S(tag, at = {}, par, txt) { const e = document.createElementNS(NSV, tag); for (const k in at) e.setAttribute(k, at[k]); if (txt != null) e.textContent = txt; if (par) par.appendChild(e); return e; }
+const fmt = (v, d = 0) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const lin = (d0, d1, r0, r1) => v => r0 + (v - d0) / (d1 - d0) * (r1 - r0);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function rng(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+const neg = v => String(v).replace('-', '−');
+const hex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const CO = hex('#ff7a59'), AM = hex('#ffc15e'), TL = hex('#3fd6c0');
+function leColor(le, a = 1) { const k = clamp((le - 45) / 37, 0, 1); const c = k < .5 ? CO.map((v, i) => lerp(v, AM[i], k * 2)) : AM.map((v, i) => lerp(v, TL[i], (k - .5) * 2)); return `rgba(${c.map(Math.round)},${a})`; }
+
+/* ============ fondo: partículas y pulso ============ */
+const BG = (() => {
+  const cv = $('#bg'), ctx = cv.getContext('2d'), r = rng(77); let W = 0, H = 0, dpr = 1, cam = 0, camT = 0;
+  const pts = Array.from({ length: 230 }, () => ({ x: r(), y: r(), z: .25 + r() * .75, p: r() * 6.28, s: r(), vy: .004 + r() * .012 }));
+  function size() { dpr = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = W * dpr; cv.height = H * dpr; }
+  addEventListener('resize', size); size();
+  return {
+    warp(dir) { camT += dir * .2; },
+    tick(t, dt) {
+      const pc = cam; cam += (camT - cam) * (1 - Math.exp(-dt * 3.2)); const v = (cam - pc) / Math.max(dt, .001);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+      for (const s of pts) {
+        s.y -= s.vy * dt * s.z; const x = ((s.x - cam * s.z) % 1 + 1) % 1 * W, y = ((s.y % 1) + 1) % 1 * H, tw = .55 + .45 * Math.sin(t * (.5 + s.s) + s.p), sz = (.6 + s.z * 1.5) * (s.s > .95 ? 1.9 : 1);
+        ctx.globalAlpha = (.15 + .55 * s.z) * tw; ctx.fillStyle = s.s > .9 ? '#ffc15e' : s.s < .15 ? '#ff9a7d' : '#7fe8d8';
+        const len = Math.min(120, Math.abs(v) * s.z * W * .05);
+        if (len > 2) ctx.fillRect(v > 0 ? x : x - len, y, len, sz * .8); else { ctx.beginPath(); ctx.arc(x, y, sz * .7, 0, 6.3); ctx.fill(); }
+      }
+      // pulso tipo electrocardiograma, muy tenue, abajo
+      ctx.globalAlpha = .13; ctx.strokeStyle = '#3fd6c0'; ctx.lineWidth = 1.5; ctx.beginPath();
+      const base = H * .9, per = 520, off = (t * 90) % per;
+      for (let x = -per; x < W + per; x += 4) { const u = ((x + off) % per + per) % per; let y = 0; if (u > 230 && u < 250) y = -(u - 230) * 2; else if (u >= 250 && u < 262) y = -40 + (u - 250) * 7; else if (u >= 262 && u < 274) y = 44 - (u - 262) * 3.7; else if (u > 320 && u < 360) y = -10 * Math.sin((u - 320) / 40 * Math.PI); x === -per ? ctx.moveTo(x, base + y) : ctx.lineTo(x, base + y); }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    }
+  };
+})();
+
+/* ============ ayudas SVG ============ */
+function frame(host, W, H, m, label) { const s = S('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img', 'aria-label': label || '' }, typeof host === 'string' ? $(host) : host); return { s, W, H, l: m[3], r: W - m[1], t: m[0], b: H - m[2] }; }
+function axX(f, sc, tk, ff, title, par) { const g = par || f.s; S('line', { x1: f.l, x2: f.r, y1: f.b, y2: f.b, class: 'axis' }, g); tk.forEach(t => S('text', { x: sc(t), y: f.b + 28, class: 'tick', 'text-anchor': 'middle' }, g, ff ? ff(t) : t)); if (title) S('text', { x: (f.l + f.r) / 2, y: f.b + 62, class: 'atitle', 'text-anchor': 'middle' }, g, title); }
+function axY(f, sc, tk, ff, title, par) { const g = par || f.s; tk.forEach(t => { S('line', { x1: f.l, x2: f.r, y1: sc(t), y2: sc(t), class: 'grid' }, g); S('text', { x: f.l - 12, y: sc(t) + 6, class: 'tick', 'text-anchor': 'end' }, g, ff ? ff(t) : t); }); if (title) S('text', { transform: `translate(${f.l - 74},${(f.t + f.b) / 2}) rotate(-90)`, class: 'atitle', 'text-anchor': 'middle' }, g, title); }
+function setAnim(e, o = {}) { if (o.step != null) e.dataset.step = o.step; if (o.d) e.style.setProperty('--d', o.d); if (o.dur) e.style.setProperty('--dur', o.dur + 's'); return e; }
+function pline(f, pts, cls, o = {}, par) { const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(''); const p = S('path', { d, class: (o.nodraw ? '' : 'draw ') + cls }, par || f.s); let len = 0; for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); p.style.setProperty('--len', Math.ceil(len) + 2); return setAnim(p, o); }
+let UID = 0; function wipe(f, o = {}) { const id = 'wp' + (++UID), cp = S('clipPath', { id }, f.s); setAnim(S('rect', { x: f.l - 8, y: f.t - 40, width: f.r - f.l + 40, height: f.b - f.t + 80, class: 'wiper' }, cp), o); return `url(#${id})`; }
+
+const scenes = {};
+
+/* --- portada: reloj de vida --- */
+scenes.portada = (() => {
+  const cv = $('#hero'), ctx = cv.getContext('2d'), cx = 440, cy = 450, P = DATA.clus.pts.slice().sort((a, b) => a[6] - b[6]), N = P.length, R = lin(35, 90, 70, 410), r = rng(11);
+  const dots = P.map((p, i) => ({ a: -Math.PI / 2 + .42 + i / (N - 1) * (Math.PI * 2 - .84), le: p[6], j: (r() - .5) * .02, ph: r() * 6.28 }));
+  let t0 = null;
+  return {
+    set() { if (t0 === null) t0 = performance.now() / 1000; },
+    tick(t) {
+      if (t0 === null) t0 = t; const el = REDUCE ? 99 : t - t0, rot = 0;
+      ctx.clearRect(0, 0, 880, 900);
+      const g = ctx.createRadialGradient(cx, cy, 30, cx, cy, 430); g.addColorStop(0, 'rgba(63,214,192,.12)'); g.addColorStop(.6, 'rgba(255,193,94,.04)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, 880, 900);
+      ctx.font = '500 16px "IBM Plex Mono",monospace'; ctx.textAlign = 'left';
+      [40, 50, 60, 70, 80, 90].forEach((v, i) => { const k = clamp((el - .2 - i * .12) / .6, 0, 1); ctx.globalAlpha = k * (v === 90 ? .25 : .5); ctx.strokeStyle = 'rgba(140,220,210,.5)'; ctx.lineWidth = 1; ctx.setLineDash(v % 20 ? [3, 7] : []); ctx.beginPath(); ctx.arc(cx, cy, R(v), 0, 6.3); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#92a9ad'; ctx.fillText(v + ' años', cx + 8, cy - R(v) - 6); });
+      ctx.globalAlpha = 1;
+      // barrido
+      const sw = (REDUCE ? 0 : t * .9) % (Math.PI * 2) - Math.PI / 2;
+      const sg = ctx.createConicGradient ? ctx.createConicGradient(sw - .6, cx, cy) : null;
+      if (sg) { sg.addColorStop(0, 'rgba(63,214,192,0)'); sg.addColorStop(.095, 'rgba(63,214,192,.16)'); sg.addColorStop(.096, 'rgba(63,214,192,0)'); sg.addColorStop(1, 'rgba(63,214,192,0)'); ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(cx, cy, 420, 0, 6.3); ctx.fill(); }
+      dots.forEach((d, i) => {
+        const k = clamp((el - .6 - i / N * 1.6) / .5, 0, 1); if (!k) return;
+        const a = d.a + rot + d.j, rr = lerp(30, R(d.le), 1 - Math.pow(1 - k, 3)), x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
+        let da = ((a + Math.PI / 2 - (sw + Math.PI / 2)) % 6.283 + 6.283) % 6.283; const hl = Math.exp(-((6.283 - da) % 6.283) * 2.2);
+        ctx.fillStyle = leColor(d.le, .9); ctx.shadowColor = leColor(d.le, 1); ctx.shadowBlur = 6 + 14 * hl;
+        ctx.beginPath(); ctx.arc(x, y, 4.2 + 2.5 * hl, 0, 6.3); ctx.fill();
+      });
+      ctx.shadowBlur = 0;
+      ctx.textAlign = 'center'; ctx.fillStyle = '#edf5f3'; ctx.font = '600 44px Unbounded,sans-serif'; ctx.fillText('183', cx, cy + 8); ctx.font = '500 15px "IBM Plex Mono",monospace'; ctx.fillStyle = '#92a9ad'; ctx.fillText('PAÍSES', cx, cy + 34);
+    }
+  };
+})();
+
+/* --- cierre: palabras y pulso --- */
+(() => { const h = $('#msg-h'); let i = 0; h.innerHTML = h.innerHTML.split(/\s+(?![^<]*>)/).map(w => `<span style="--d:${200 + 120 * i++}">${w}</span>`).join(' '); })();
+scenes.cierre = (() => { const cv = $('#ecg'), ctx = cv.getContext('2d'); return { tick(t) { ctx.clearRect(0, 0, 1920, 160); const head = (REDUCE ? 1920 : (t * 520) % 2300); ctx.lineWidth = 3; for (let x = 0; x < 1920; x += 3) { const u = x % 640; let y = 80; if (u > 300 && u < 320) y -= (u - 300) * 3; else if (u >= 320 && u < 334) y = 20 + (u - 320) * 8; else if (u >= 334 && u < 348) y = 132 - (u - 334) * 3.7; else if (u > 400 && u < 450) y -= 14 * Math.sin((u - 400) / 50 * Math.PI); const dd = head - x; if (dd < 0 || dd > 900) continue; ctx.strokeStyle = `rgba(63,214,192,${(1 - dd / 900) * .9})`; ctx.beginPath(); ctx.moveTo(x, y); const u2 = (x + 3) % 640; let y2 = 80; if (u2 > 300 && u2 < 320) y2 -= (u2 - 300) * 3; else if (u2 >= 320 && u2 < 334) y2 = 20 + (u2 - 320) * 8; else if (u2 >= 334 && u2 < 348) y2 = 132 - (u2 - 334) * 3.7; else if (u2 > 400 && u2 < 450) y2 -= 14 * Math.sin((u2 - 400) / 50 * Math.PI); ctx.lineTo(x + 3, y2); ctx.stroke(); } } }; })();
+
+/* --- objetivo: histograma --- */
+scenes.objetivo = (() => {
+  const H = DATA.hist, f = frame('#ob-svg', 1060, 590, [14, 20, 80, 96], 'Histograma de la esperanza de vida'), sx = lin(36, 90, f.l, f.r), ymx = Math.ceil(Math.max(...H.c) / 50) * 50, sy = lin(0, ymx, f.b, f.t), n = H.c.length, bw = (sx(H.e[1]) - sx(H.e[0]));
+  axY(f, sy, [0, 100, 200, 300, 400].filter(v => v <= ymx), null, 'Registros'); axX(f, sx, [40, 50, 60, 70, 80, 90], null, 'Esperanza de vida (años)');
+  const A = S('g', {}, f.s), B = S('g', {}, f.s);
+  H.c.forEach((v, i) => setAnim(S('rect', { x: sx(H.e[i]) + 1.5, y: sy(v), width: bw - 3, height: f.b - sy(v), rx: 3, class: 'bar c-tl', opacity: .9 }, A), { d: 250 + i * 25 }));
+  H.dvg.forEach((v, i) => { if (v) setAnim(S('rect', { x: sx(H.e[i]) + 1.5, y: sy(v), width: bw - 3, height: f.b - sy(v), rx: 3, class: 'bar c-am', opacity: .9 }, B), { step: 1, d: i * 22 }); });
+  H.dev.forEach((v, i) => { if (v) { const y0 = sy(H.dvg[i]); setAnim(S('rect', { x: sx(H.e[i]) + 1.5, y: y0 - (f.b - sy(v)), width: bw - 3, height: f.b - sy(v), rx: 3, class: 'bar c-sk' }, B), { step: 1, d: 500 + i * 22 }); } });
+  const md = pline(f, [[sx(72.1), f.b], [sx(72.1), f.t + 18]], 'ln l-ink dash', { d: 1000, dur: .7 }); md.style.strokeWidth = 2.5;
+  S('text', { x: sx(72.1) - 10, y: f.t + 34, 'text-anchor': 'end', class: 'labm fade', style: '--d:1300' }, f.s, 'mediana 72.1');
+  S('text', { x: sx(36.3) + 4, y: sy(10) - 14, class: 'tick fade', style: '--d:1500' }, f.s, 'Haití 2010 →');
+  return { set(s) { A.style.transition = 'opacity .5s'; A.style.opacity = s >= 1 ? 0 : 1; const c = $('#ob-cap'); c.style.transition = 'opacity .5s'; c.style.opacity = s >= 1 ? .35 : 1; } };
+})();
+
+/* --- correlación: barras divergentes --- */
+(() => {
+  const C = [['Adult Mortality', -.840], ['Schooling', .713], ['Income composition', .689], ['BMI', .557], ['HIV/AIDS', -.557], ['Diphtheria', .472], ['thinness 1-19', -.468], ['thinness 5-9', -.462], ['GDP', .461], ['Polio', .458], ['% expenditure', .428], ['Alcohol', .389]];
+  const f = frame('#co-svg', 980, 660, [10, 70, 80, 250], 'Correlación de Pearson de doce variables con la esperanza de vida'), sx = lin(-1, 1, f.l, f.r), rh = (f.b - f.t) / C.length;
+  axX(f, sx, [-1, -.5, 0, .5, 1], v => neg(v), 'Correlación con la esperanza de vida (r)');
+  S('line', { x1: sx(0), x2: sx(0), y1: f.t, y2: f.b, class: 'axis' }, f.s);
+  C.forEach(([n, v], i) => { const y = f.t + i * rh, h = rh - 12, x0 = sx(Math.min(0, v)), w = Math.abs(sx(v) - sx(0));
+    const hi = { 0: 1, 4: 1, 1: 2, 2: 2, 6: 3, 7: 3, 8: 3, 10: 3 }[i];
+    const r = S('rect', { x: x0, y: y + 6, width: w, height: h, rx: 6, class: 'barx ' + (v < 0 ? 'neg c-co' : 'c-tl') }, f.s); setAnim(r, { d: 200 + i * 70 }); r.dataset.hl = hi || 0;
+    S('text', { x: f.l - 14, y: y + rh / 2 + 7, class: 'tick', 'text-anchor': 'end', style: 'fill:#edf5f3;font-size:20px' }, f.s, n);
+    S('text', { x: v < 0 ? sx(0) + 12 : x0 + w + 10, y: y + rh / 2 + 7, class: 'labm fade', 'text-anchor': 'start', style: `--d:${700 + i * 70}` }, f.s, neg(v.toFixed(2))); });
+  return null;
+})();
+scenes.correlacion = { set(s) { $$('#co-svg rect[data-hl]').forEach(r => { r.style.transition = 'opacity .5s, transform .85s cubic-bezier(.2,.8,.2,1)'; r.style.opacity = !s || +r.dataset.hl === s ? 1 : .22; }); } };
+
+/* --- brecha: líneas por año --- */
+(() => {
+  const Y = DATA.yr, f = frame('#br-svg', 1080, 610, [20, 70, 70, 90], 'Esperanza de vida media por año según Status'), sx = lin(2000, 2015, f.l, f.r), sy = lin(60, 84, f.b, f.t);
+  axY(f, sy, [60, 65, 70, 75, 80], null, 'Años'); axX(f, sx, [2000, 2003, 2006, 2009, 2012, 2015], null, '');
+  const area = 'M' + Y.y.map((y, i) => sx(y) + ' ' + sy(Y.dev[i])).join('L') + 'L' + Y.y.slice().reverse().map((y, i) => sx(y) + ' ' + sy(Y.dvg[Y.y.length - 1 - i])).join('L') + 'Z';
+  S('g', { 'clip-path': wipe(f, { d: 300, dur: 2.2 }) }, f.s).appendChild(S('path', { d: area, fill: 'rgba(255,122,89,.10)' }));
+  pline(f, Y.y.map((y, i) => [sx(y), sy(Y.dev[i])]), 'ln l-sk', { d: 300, dur: 2.2 }); pline(f, Y.y.map((y, i) => [sx(y), sy(Y.dvg[i])]), 'ln l-am', { d: 300, dur: 2.2 });
+  [[0, '12.2'], [15, '11.0']].forEach(([i, t], k) => { const x = sx(Y.y[i]) + (k ? -26 : 26); S('line', { x1: x, x2: x, y1: sy(Y.dev[i]) + 8, y2: sy(Y.dvg[i]) - 8, class: 'ln l-co fade', style: `stroke-width:2.5;--d:${900 + k * 1300}` }, f.s); S('text', { x: x + (k ? -12 : 12), y: (sy(Y.dev[i]) + sy(Y.dvg[i])) / 2 + 8, 'text-anchor': k ? 'end' : 'start', class: 'lab fade', style: `fill:var(--coral);font-size:26px;--d:${1000 + k * 1300}` }, f.s, t + ' años'); });
+  [['dev', 'sk', 'Desarrollados'], ['dvg', 'am', 'En desarrollo']].forEach(([k, c, n]) => { S('circle', { cx: sx(2015), cy: sy(Y[k][15]), r: 8, class: 'pop c-' + c, style: '--d:2400' }, f.s); S('text', { x: sx(2015) + 16, y: sy(Y[k][15]) + 7, class: 'labm fade', style: '--d:2500' }, f.s, Y[k][15].toFixed(1)); });
+})();
+
+/* --- resultados: MAE por modelo --- */
+(() => {
+  const M = [['Árbol', 1.498, 1.652, 'vi'], ['Random Forest', 1.053, 1.056, 'tl'], ['SVR', 1.689, 1.481, 'sk'], ['Red densa', 1.687, 1.559, 'am']];
+  const f = frame('#re-svg', 900, 600, [30, 20, 70, 90], 'MAE en prueba por modelo, base y ajustado'), sy = lin(0, 2, f.b, f.t), cw = (f.r - f.l) / 4;
+  axY(f, sy, [0, .5, 1, 1.5, 2], v => v.toFixed(1), 'MAE (años)'); S('line', { x1: f.l, x2: f.r, y1: f.b, y2: f.b, class: 'axis' }, f.s);
+  M.forEach(([n, b, a, c], i) => { const x = f.l + cw * i + cw * .14, w = cw * .34;
+    setAnim(S('rect', { x, y: sy(b), width: w, height: f.b - sy(b), rx: 5, class: 'bar', fill: 'rgba(237,245,243,.28)' }, f.s), { d: 250 + i * 120 });
+    setAnim(S('rect', { x: x + w + 6, y: sy(a), width: w, height: f.b - sy(a), rx: 5, class: 'bar c-' + c }, f.s), { d: 450 + i * 120 });
+    S('text', { x: x + w / 2, y: sy(b) - 10, 'text-anchor': 'middle', class: 'tick fade', style: `--d:${900 + i * 120}` }, f.s, b.toFixed(2));
+    S('text', { x: x + w * 1.5 + 6, y: sy(a) - 10, 'text-anchor': 'middle', class: 'labm fade', style: `--d:${1000 + i * 120}` }, f.s, a.toFixed(2));
+    S('text', { x: f.l + cw * (i + .5), y: f.b + 32, 'text-anchor': 'middle', class: 'lab', style: 'font-size:22px' }, f.s, n); });
+  S('text', { x: f.l + cw * 3.5, y: f.b + 58, 'text-anchor': 'middle', class: 'tick', style: 'fill:var(--amber)' }, f.s, 'nuevo');
+})();
+
+/* --- predicho vs real --- */
+(() => {
+  const P = DATA.pv, f = frame('#pv-svg', 840, 640, [16, 24, 80, 96], 'Esperanza de vida predicha frente a real en el conjunto de prueba'), sx = lin(35, 92, f.l, f.r), sy = lin(35, 92, f.b, f.t);
+  axY(f, sy, [40, 50, 60, 70, 80, 90], null, 'Predicha (años)'); axX(f, sx, [40, 50, 60, 70, 80, 90], null, 'Real (años)');
+  pline(f, [[sx(35), sy(35)], [sx(92), sy(92)]], 'ln l-ink dash', { d: 200, dur: 1 }).style.strokeWidth = 2;
+  const r = rng(5);
+  P.forEach(([a, b]) => { const e = Math.abs(a - b); S('circle', { cx: sx(a), cy: sy(b), r: e > 5 ? 7 : 5, class: 'pop ' + (e > 5 ? 'c-co' : 'c-tl'), opacity: e > 5 ? 1 : .55, style: `--d:${400 + (a - 35) / 57 * 1300 + r() * 200}` }, f.s); });
+  S('text', { x: sx(90), y: sy(43), 'text-anchor': 'end', class: 'labm fade', style: '--d:1900' }, f.s, 'R² = 0.968 · RF');
+  S('text', { x: sx(90), y: sy(40) + 4, 'text-anchor': 'end', class: 'tick fade', style: '--d:2000;fill:var(--coral)' }, f.s, '● error > 5 años (14 de 586)');
+})();
+
+/* --- PCA: varianza --- */
+scenes.pca = (() => {
+  const ev = DATA.ev, cum = DATA.cum, f = frame('#pc-svg', 1000, 620, [24, 30, 76, 96], 'Varianza explicada por componente principal y acumulada'), n = ev.length, cw = (f.r - f.l) / n, sx = i => f.l + cw * (i + .5), sy = lin(0, 1, f.b, f.t);
+  axY(f, sy, [0, .2, .4, .6, .8, 1], v => Math.round(v * 100) + ' %', 'Varianza explicada'); S('line', { x1: f.l, x2: f.r, y1: f.b, y2: f.b, class: 'axis' }, f.s);
+  ev.forEach((v, i) => { setAnim(S('rect', { x: f.l + cw * i + 4, y: sy(v), width: cw - 8, height: f.b - sy(v), rx: 4, class: 'bar', fill: 'rgba(63,214,192,.45)' }, f.s), { d: 200 + i * 40 }); if (i % 2 === 0 || i === 11) S('text', { x: sx(i), y: f.b + 28, class: 'tick', 'text-anchor': 'middle' }, f.s, i + 1); });
+  S('text', { x: (f.l + f.r) / 2, y: f.b + 62, class: 'atitle', 'text-anchor': 'middle' }, f.s, 'Componente principal');
+  pline(f, cum.map((v, i) => [sx(i), sy(v)]), 'ln l-am', { d: 900, dur: 2 });
+  cum.forEach((v, i) => setAnim(S('circle', { cx: sx(i), cy: sy(v), r: 5.5, class: 'pop c-am' }, f.s), { d: 900 + i * 90 }));
+  [[.8, 8], [.9, 11], [.95, 14]].forEach(([th, i], k) => { const g = S('g', { class: 'fade', 'data-step': 1, style: `--d:${k * 200}` }, f.s);
+    S('line', { x1: f.l, x2: sx(i), y1: sy(th), y2: sy(th), class: 'ln l-ink dash', style: 'stroke-width:1.5;opacity:.5' }, g); S('line', { x1: sx(i), x2: sx(i), y1: sy(th), y2: f.b, class: 'ln l-ink dash', style: 'stroke-width:1.5;opacity:.5' }, g);
+    S('text', { x: f.l + 10, y: sy(th) - 8, class: 'tick', style: 'fill:#edf5f3' }, g, Math.round(th * 100) + ' %'); });
+  const hl = S('g', { class: 'fade', 'data-step': 3 }, f.s); S('circle', { cx: sx(11), cy: sy(cum[11]), r: 16, fill: 'none', style: 'stroke:var(--amber);stroke-width:3.5' }, hl); S('text', { x: sx(11) + 4, y: sy(cum[11]) + 44, class: 'lab', 'text-anchor': 'middle', style: 'fill:var(--amber)' }, hl, '12 PC · 90.4 %');
+  S('text', { x: sx(0) + 22, y: sy(ev[0]) + 6, class: 'labm fade', style: '--d:600' }, f.s, (ev[0] * 100).toFixed(1) + ' %');
+})();
+
+/* --- PCA: comparación por k --- */
+(() => {
+  const D = DATA.pcacmp, f = frame('#pk-svg', 940, 620, [24, 110, 80, 96], 'R² en prueba según el número de componentes'), ks = [2, 5, 8, 10, 12, 15, 20], sx = lin(1, 21, f.l, f.r), sy = lin(.68, 1, f.b, f.t);
+  axY(f, sy, [.7, .8, .9, 1], v => v.toFixed(1), 'R² en prueba'); axX(f, sx, ks, v => v === 20 ? '20 var.' : v, 'Componentes principales conservados');
+  S('rect', { x: sx(11.4), y: f.t, width: sx(12.6) - sx(11.4), height: f.b - f.t, fill: 'rgba(255,193,94,.10)', class: 'fade', style: '--d:1800' }, f.s);
+  const cols = { 'Random Forest': 'tl', 'SVR': 'sk', 'Red densa (MLP)': 'am' }, names = { 'Random Forest': 'RF', 'SVR': 'SVR', 'Red densa (MLP)': 'Red' };
+  Object.entries(D).forEach(([m, rows], j) => { const pts = ks.map(k => rows.find(r => r[0] === k)).map(r => [sx(r[0]), sy(r[1])]);
+    pline(f, pts.slice(0, 6), 'ln l-' + cols[m], { d: 300 + j * 300, dur: 1.8 });
+    S('line', { x1: pts[5][0], y1: pts[5][1], x2: pts[6][0], y2: pts[6][1], class: 'ln dash fade l-' + cols[m], style: `stroke-width:2.5;--d:${2000 + j * 150}` }, f.s);
+    pts.forEach((p, i) => S('circle', { cx: p[0], cy: p[1], r: i === 6 ? 9 : 6, class: 'pop c-' + cols[m], stroke: '#04090c', 'stroke-width': 2, style: `--d:${300 + j * 300 + i * 250}` }, f.s));
+    S('text', { x: pts[6][0] + 16, y: pts[6][1] + 7 + (m === 'SVR' ? 10 : m === 'Red densa (MLP)' ? -6 : 0), class: 'labm fade', style: `fill:var(--${{ tl: 'teal', sk: 'sky', am: 'amber' }[cols[m]]});--d:2300` }, f.s, names[m]); });
+  S('text', { x: sx(12), y: f.t + 22, 'text-anchor': 'middle', class: 'tick fade', style: '--d:1800;fill:var(--amber)' }, f.s, '12 PC');
+})();
+
+/* --- agrupamiento: codo + silueta y dispersión --- */
+scenes.clusters = (() => {
+  const C = DATA.clus;
+  // codo y silueta
+  const f = frame('#el-svg', 520, 520, [40, 70, 70, 74], 'Inercia y silueta según el número de grupos k'), ks = [2, 3, 4, 5, 6, 7, 8, 9, 10], sx = lin(2, 10, f.l, f.r), syI = lin(1100, 2100, f.b, f.t), syS = lin(.1, .4, f.b, f.t);
+  axX(f, sx, ks, null, 'Número de grupos k'); [1200, 1600, 2000].forEach(v => { S('line', { x1: f.l, x2: f.r, y1: syI(v), y2: syI(v), class: 'grid' }, f.s); S('text', { x: f.l - 10, y: syI(v) + 6, class: 'tick', 'text-anchor': 'end', style: 'font-size:16px' }, f.s, fmt(v)); });
+  [.2, .3, .4].forEach(v => S('text', { x: f.r + 10, y: syS(v) + 6, class: 'tick', style: 'font-size:16px;fill:var(--amber)' }, f.s, v.toFixed(1)));
+  S('text', { x: f.l, y: f.t - 16, class: 'tick', style: 'font-size:17px;fill:var(--sky)' }, f.s, 'Inercia (codo)'); S('text', { x: f.r, y: f.t - 16, class: 'tick', 'text-anchor': 'end', style: 'font-size:17px;fill:var(--amber)' }, f.s, 'Silueta');
+  pline(f, C.inertia.map((v, i) => [sx(ks[i]), syI(v)]), 'ln l-sk', { d: 300, dur: 1.6 }); pline(f, C.sil.map((v, i) => [sx(ks[i]), syS(v)]), 'ln l-am', { d: 600, dur: 1.6 });
+  C.sil.forEach((v, i) => S('circle', { cx: sx(ks[i]), cy: syS(v), r: i < 2 ? 8 : 5, class: 'pop c-am', style: `--d:${600 + i * 150}` }, f.s));
+  S('text', { x: sx(2) + 14, y: syS(C.sil[0]) + 6, class: 'labm fade', style: '--d:1800' }, f.s, '0.35 · máx.'); S('text', { x: sx(3) + 14, y: syS(C.sil[1]) - 12, class: 'labm fade', style: '--d:1900' }, f.s, '0.20');
+  // dispersión PC1-PC2
+  const g = frame('#sc-svg', 1040, 640, [16, 24, 76, 80], 'Países en el plano de las dos primeras componentes, coloreados por grupo'), X = lin(-8.5, 5.5, g.l, g.r), Y = lin(-4.5, 6, g.b, g.t);
+  axX(g, X, [-8, -6, -4, -2, 0, 2, 4], neg, 'PC1 · desarrollo (47.8 % de la varianza) →'); [-4, -2, 0, 2, 4, 6].forEach(v => { S('line', { x1: g.l, x2: g.r, y1: Y(v), y2: Y(v), class: 'grid' }, g.s); S('text', { x: g.l - 10, y: Y(v) + 6, class: 'tick', 'text-anchor': 'end' }, g.s, neg(v)); });
+  S('text', { transform: `translate(${g.l - 56},${(g.t + g.b) / 2}) rotate(-90)`, class: 'atitle', 'text-anchor': 'middle' }, g.s, 'PC2 · tamaño poblacional (10.3 %)');
+  const r = rng(8), dots = C.pts.map(p => { const c = S('circle', { cx: X(p[1]), cy: Y(p[2]), r: 9, class: 'pop', stroke: '#04090c', 'stroke-width': 1.5, style: `--d:${300 + r() * 1200}` }, g.s); c.appendChild(S('title', {}, null, `${p[0]} · ${p[6]} años`)); return { c, p }; });
+  const lbl = { 'Colombia': [12, -14], 'Japan': [12, -14, 'Japón'], 'Nigeria': [12, 22], 'Chile': [12, 24], 'Haiti': [12, 22, 'Haití'], 'United States of America': [-12, 26, 'EE. UU.', 'end'], 'India': [14, 6] };
+  C.pts.forEach(p => { const L = lbl[p[0]]; if (!L) return; S('text', { x: X(p[1]) + L[0], y: Y(p[2]) + L[1], class: 'labm fade', 'text-anchor': L[3] || 'start', style: 'font-size:18px;--d:1600' }, g.s, L[2] || p[0]); });
+  const PAL = { k2: ['#ff7a59', '#3fd6c0'], k3: ['#ff7a59', '#a99bff', '#3fd6c0'], st: ['#ffc15e', '#6cc4ff'] };
+  const LEG = [
+    '<span><i class="dot" style="background:var(--coral)"></i>Grupo A · 66 países · 59.3 años</span><span><i class="dot" style="background:var(--teal)"></i>Grupo B · 117 países · 74.8 años</span><span>k = 2</span>',
+    '<span><i class="dot" style="background:var(--coral)"></i>1 · 61 países · 58.8 años</span><span><i class="dot" style="background:var(--violet)"></i>2 · 75 · 72.0</span><span><i class="dot" style="background:var(--teal)"></i>3 · 47 · 78.3</span><span>k = 3</span>',
+    '<span><i class="dot" style="background:var(--amber)"></i>En desarrollo</span><span><i class="dot" style="background:var(--sky)"></i>Desarrollado</span><span>Etiqueta real Status</span>'];
+  const HEAD = ['K-means sobre 183 países, sin mirar la etiqueta', 'La silueta elige k = 2: países con alta mortalidad frente al resto', 'Con k = 3 el segundo grupo se parte en medio y alto', 'Comparado con la etiqueta Status: no es lo mismo'];
+  function paint(s) { const key = s >= 3 ? 'st' : s === 2 ? 'k3' : 'k2'; dots.forEach(({ c, p }) => { const v = key === 'st' ? p[5] : key === 'k3' ? p[4] : p[3]; c.style.fill = PAL[key][v]; c.style.opacity = key === 'st' ? .9 : 1; });
+    $('#cl-leg').innerHTML = LEG[s >= 3 ? 2 : s === 2 ? 1 : 0]; $('#cl-h').textContent = HEAD[s]; }
+  paint(0);
+  return { set(s) { paint(s); } };
+})();
+
+/* ============ motor ============ */
+const slides = $$('.slide'), stage = $('#stage'), hud = { sec: $('#h-sec'), spk: $('#h-spk'), n: $('#h-n'), bar: $('#hud .bar i'), t: $('#h-t') };
+let cur = -1, step = 0, maxS = 0, tStart = null;
+const trig = e => { const p = e.closest('[data-step]'); return p ? +p.dataset.step : 0; };
+const maxStep = s => Math.max(+(s.dataset.steps || 0), ...$$('[data-step]', s).map(e => +e.dataset.step), 0);
+function countUp(e) { const v = +e.dataset.count, d = +(e.dataset.dec || 0); if (REDUCE) { e.textContent = fmt(v, d); return; } const t0 = performance.now(); (function fr(t) { const k = clamp((t - t0) / 1200, 0, 1), q = 1 - Math.pow(1 - k, 3); e.textContent = fmt(v * q, d); if (k < 1 && e.isConnected) requestAnimationFrame(fr); })(t0); }
+function apply(info) {
+  const s = slides[cur]; s.dataset.at = step; $$('[data-step]', s).forEach(e => e.classList.toggle('on', +e.dataset.step <= step));
+  $$('[data-count]', s).forEach(e => { const tg = trig(e); if (tg === step && !info.instant) setTimeout(() => countUp(e), info.enter ? 350 : 100); else e.textContent = fmt(+e.dataset.count, +(e.dataset.dec || 0)); });
+  scenes[s.id]?.set?.(step, info);
+}
+function go(i, atEnd) {
+  i = clamp(i, 0, slides.length - 1); if (i === cur) return; const old = slides[cur], dir = i > cur ? 1 : -1;
+  if (old) { old.classList.remove('active'); $$('.on', old).forEach(e => e.classList.remove('on')); }
+  cur = i; slides.forEach((s, k) => s.classList.toggle('prev', k < cur)); const s = slides[cur]; void s.offsetWidth; s.classList.add('active');
+  maxS = maxStep(s); step = atEnd ? maxS : 0; apply({ enter: true, instant: !!atEnd });
+  if (old) BG.warp(dir);
+  const nt = NOTES[cur]; hud.sec.textContent = s.dataset.sec; hud.spk.textContent = nt.spk; hud.n.textContent = String(cur + 1).padStart(2, '0') + ' / ' + slides.length; hud.bar.style.width = (cur + 1) / slides.length * 100 + '%';
+  try { history.replaceState(null, '', '#d' + (cur + 1)); } catch (e) { }
+}
+const startT = () => { if (tStart === null) tStart = performance.now(); };
+const next = () => { startT(); if (step < maxS) { step++; apply({}); } else go(cur + 1); };
+const prev = () => { if (step > 0) { step--; apply({ instant: true }); } else go(cur - 1, true); };
+function fit() { const k = Math.min(innerWidth / 1920, innerHeight / 1080); stage.style.transform = `translate(-50%,-50%) scale(${k})`; }
+addEventListener('resize', fit); fit();
+function fullscreen() { try { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())?.catch?.(() => { }); } catch (e) { } }
+addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return; const k = e.key;
+  if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(k)) { e.preventDefault(); next(); }
+  else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(k)) { e.preventDefault(); prev(); }
+  else if (k === 'Home') go(0); else if (k === 'End') go(slides.length - 1);
+  else if (k === 'f' || k === 'F') fullscreen(); else if (k === 't' || k === 'T') tStart = null;
+});
+stage.addEventListener('click', e => { (e.clientX < innerWidth * .22) ? prev() : next(); });
+let tx = null; addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true }); addEventListener('touchend', e => { if (tx == null) return; const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 50) { d < 0 ? next() : prev(); } tx = null; }, { passive: true });
+$('#b-prev').onclick = prev; $('#b-next').onclick = next; $('#b-full').onclick = fullscreen;
+const h0 = /^#d(\d+)$/.exec(location.hash); go(h0 ? +h0[1] - 1 : 0);
+let last = performance.now(); (function loop(now) { const dt = Math.min(.05, (now - last) / 1000); last = now; const t = now / 1000; BG.tick(t, dt); scenes[slides[cur].id]?.tick?.(t, dt);
+  if (tStart !== null) { const s = Math.floor((now - tStart) / 1000); hud.t.textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); hud.t.className = s >= 600 ? 'over' : s >= 540 ? 'warn' : ''; }
+  requestAnimationFrame(loop); })(last);
+</script>
+</body>
+</html>
